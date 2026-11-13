@@ -27,7 +27,7 @@ The database itself enforces who can see what (Postgres row-level security), so 
 2. Open **Table Editor**, then `team_members`, and replace the `@example.com` emails with real ones. To add yourself as an admin, add a row with `kind` set to `head`.
 3. Open **Authentication**, then **Users**, then **Add user**, then **Create new user**. Create each person with their email and a password, and tick **Auto Confirm User**.
 4. Open **Authentication**, then **Sign In / Providers**, and turn off **Allow new users to sign up**. Only people you add can then sign in.
-5. The first person to sign in must be a `chair` or `head`. On that first sign-in, Optimus loads the starter data from the prototype. You can edit or remove it later.
+5. The live app starts empty. Add cohorts (Cohorts → Add cohort, with a student Excel/CSV), faculty, sessions and tasks from inside the app.
 
 ### 2. Cloudflare Pages (hosting)
 1. Push this folder to a GitHub repository.
@@ -58,7 +58,7 @@ npm run dev
 ```
 Without the env variables, the app runs the original preview: sample data, kept in memory only, with a "view as" persona switcher.
 
-`npm run test:sql` checks the access rules against an in-memory Postgres.
+`npm run test:sql` checks the access rules against an in-memory Postgres. `node scripts/test-cleanup.mjs` checks `supabase/remove-sample-data.sql`.
 
 ## Free-tier limits (check the current pricing pages)
 - **Supabase Free:** 500 MB database, 1 GB file storage, 50,000 monthly active users, 2 projects. Pauses after 7 idle days.
@@ -67,5 +67,5 @@ Without the env variables, the app runs the original preview: sample data, kept 
 ## Known limits of this first version
 - Each person sees changes made by others after they reload the page. There is no live sync yet.
 - If two people edit the same item at the same moment, the last save wins.
-- KPI figures, student attendance and NPS still come from the prototype's starter data until real data entry or imports are built.
+- KPI scores show "No data yet" until KPI entry or imports are built. Student attendance and scores bulk upload is not built yet (adding a cohort's students is).
 - Password reset is done by an admin in Supabase (**Authentication**, then **Users**). Email-based reset is limited on the free plan's built-in mailer.

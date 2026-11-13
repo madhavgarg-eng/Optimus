@@ -159,17 +159,21 @@ const KQ = {Q3:{
   }
 })();
 const KSTATE = {Q3:{ananya:'Signed by PM',karan:'Locked',ishita:'Ready for review'}, Q4:{ananya:'In progress',karan:'In progress',ishita:'In progress'}};
+const kqv = (q,pm,i) => { const a = KQ[q] && KQ[q][pm]; return a && a[i]!=null ? a[i] : null; };
+const kstate = (q,p) => (KSTATE[q]||{})[p] || 'In progress';
 const clamp = x=>Math.max(0,Math.min(100,x));
 const pct = ([n,d])=> d? n/d*100 : 0;
 function kpiScore(n,v){
+  if (v==null) return 0;
   if (n===1) return (pct(v.a)*3+pct(v.b)*5)/8;
   if (n===11) return v.v<=5 ? (v.m?60:100) : 0;
-  if (n===12) return (v.d && !v.f) ? 0 : clamp(100 - v.d/v.e*100);
+  if (n===12) return (v.d && !v.f) ? 0 : v.e ? clamp(100 - v.d/v.e*100) : 0;
   if (n===14) return clamp(v.nps*2);
   if (n>=15) return clamp(v/5*100);
   return clamp(pct(v));
 }
 function kpiEvidence(n,v){
+  if (v==null) return 'No data yet';
   if (n===1) return `Ops ${v.a[0]}/${v.a[1]} · Students ${v.b[0]}/${v.b[1]}`;
   if (n===7) return `${v[0]}% avg submission`;
   if (n===11) return `Variance ${v.v}% · ${v.m} process miss${v.m===1?'':'es'}`;
@@ -179,7 +183,7 @@ function kpiEvidence(n,v){
   return `${v[0]} of ${v[1]}`;
 }
 function scorecard(pm,q){
-  const rows = KPI_DEF.map((d,i)=>{ const v=KQ[q][pm][i], s=kpiScore(d.n,v); return {...d, v, s, pts:s*d.w/100, ev:kpiEvidence(d.n,v)}; });
+  const rows = KPI_DEF.map((d,i)=>{ const v=kqv(q,pm,i), s=kpiScore(d.n,v); return {...d, v, s, pts:s*d.w/100, ev:kpiEvidence(d.n,v)}; });
   const total = rows.reduce((a,r)=>a+r.pts,0);
   const pill = p => { const rs=rows.filter(r=>r.p===p); return {pts:rs.reduce((a,r)=>a+r.pts,0), max:rs.reduce((a,r)=>a+r.w,0)}; };
   return {rows, total, band: bandOf(total), p1:pill(1), p2:pill(2), p3:pill(3)};
@@ -504,6 +508,7 @@ const FAC_EXTRA = {
   f10:{desig:'Chartered Accountant, Tax and Structuring',email:'harsh.jain@example.com',phone:'+91 98290 40117',linkedin:'https://www.linkedin.com/in/harsh-vardhan-jain',payroll:'Reverentia',hours:2,basis:'hour',rate:10000,bank:{holder:'Harsh Vardhan Jain',bank:'Bank of Baroda',acct:'28470100040117',ifsc:'BARB0JAIPUR'},pan:'AHJPJ0117N'}
 };
 Object.entries(FAC_EXTRA).forEach(([id,x])=>Object.assign(FACULTY[id],x));
+const facName = id => FACULTY[id] ? esc(FACULTY[id].name) : '<span class="tag t-bad">Not assigned</span>';
 const activeFac = () => Object.entries(FACULTY).filter(([,f])=>!f.removed);
 const facUnits = f => f.basis==='hour' ? (+f.hours||0) : (+f.sessions||0);
 const facHon = f => (+f.rate||0) * facUnits(f);
@@ -686,7 +691,7 @@ const BRIDGE = {
     HONORARIA.length = 0; HONORARIA.push(...asc('honoraria'));
     const setting = id => (by('settings').find(r=>r.id===id)||{}).data;
     const swap = (obj, val) => { if (!val) return; Object.keys(obj).forEach(k=>delete obj[k]); Object.assign(obj, val); };
-    swap(KSTATE, setting('kstate')); swap(KQ, setting('kq')); swap(invNext, setting('invnext'));
+    swap(KSTATE, setting('kstate') || {Q3:{}, Q4:{}}); swap(KQ, setting('kq') || {Q3:{}, Q4:{}}); swap(invNext, setting('invnext') || {sales:1, faculty:1});
     STUDENTS = COHORTS.filter(c=>c.status==='Running').flatMap(c=>c.students||[]);
   },
   login(key){
@@ -835,7 +840,7 @@ function notifications(){
   const out = [];
   mine.filter(isOverdue).slice(0,3).forEach(t=>out.push(['bad',`${esc(t.title)}`,`${esc(USERS[t.owner].name)} · overdue since ${fmt(t.due)}`]));
   mine.filter(t=>t.status!=='done' && dayDiff(t.due)>=0 && dayDiff(t.due)<=2).slice(0,2).forEach(t=>out.push(['warn',esc(t.title),dueText(t.due)]));
-  if (USERS[S.user].kind==='pm' && KSTATE.Q3[S.user]==='Ready for review') out.unshift(['info','Your Q3 KPI scorecard is ready. Review and sign it by 30 Oct.','KPIs · today']);
+  if (USERS[S.user].kind==='pm' && kstate('Q3',S.user)==='Ready for review') out.unshift(['info','Your Q3 KPI scorecard is ready. Review and sign it by 30 Oct.','KPIs · today']);
   if (USERS[S.user].kind==='chair') out.unshift(['info','Ananya Sharma signed her Q3 KPI scorecard. Approve and lock it by 30 Oct.','KPIs · today']);
   return out;
 }
@@ -1043,16 +1048,16 @@ function teamKpis(q){
   const cards = PMS.map(p=>{ const sc=scorecard(p,q), prev=q==='Q4'?scorecard(p,'Q3').total:null; return `<button class="card kpi-pm" data-act="kpm" data-v="${p}">
     <div style="display:flex;gap:14px;align-items:center">${scoreRing(sc.total,84)}<div style="min-width:0"><div class="who">${av(p)}<b>${esc(USERS[p].name)}</b></div><div style="margin-top:6px"><span class="tag ${sc.band.cls}">${sc.band.name}</span></div><div class="demo-note" style="margin-top:4px">${q==='Q4'?'Projected payout':'Payout'} ${sc.band.pay}% of variable pay${prev!=null?` · Q3 ${prev.toFixed(1)}`:''}</div></div></div>
     <div class="pill-bars">${[1,2,3].map(i=>{const pp=sc['p'+i];return `<div><span>Pillar ${i}</span><div class="bar"><i style="width:${pp.pts/pp.max*100}%;background:${scoreCol(pp.pts/pp.max*100)}"></i></div><b class="num">${pp.pts.toFixed(1)} / ${pp.max}</b></div>`}).join('')}</div>
-    <div class="demo-note">Status: <b style="color:var(--ink)">${KSTATE[q][p]}</b></div></button>`; }).join('');
+    <div class="demo-note">Status: <b style="color:var(--ink)">${kstate(q,p)}</b></div></button>`; }).join('');
   const matrix = `<div class="card"><div class="card-h"><h3>KPI matrix</h3><small>KPI score per PM · click a cell for the formula and evidence</small></div><div class="tbl-wrap"><table class="kmatrix"><thead><tr><th>KPI</th><th class="r">Weight</th>${PMS.map(p=>`<th class="c">${esc(USERS[p].name.split(' ')[0])}</th>`).join('')}</tr></thead><tbody>
-    ${[1,2,3].map(pi=>`<tr class="pill-row"><td colspan="${2+PMS.length}">${PILLARS[pi]}</td></tr>`+KPI_DEF.filter(d=>d.p===pi).map(d=>`<tr><td><span class="kn">${d.n}</span>${esc(d.area)}</td><td class="r num">${d.w}%</td>${PMS.map(p=>{const s=kpiScore(d.n,KQ[q][p][d.n-1]);return `<td class="c"><button class="kcell" data-act="kpi" data-n="${d.n}" data-p="${p}" style="background:color-mix(in srgb, ${scoreCol(s)} ${s<60?28:18}%, transparent);color:${scoreCol(s)}">${Math.round(s)}</button></td>`}).join('')}</tr>`).join('')).join('')}
+    ${[1,2,3].map(pi=>`<tr class="pill-row"><td colspan="${2+PMS.length}">${PILLARS[pi]}</td></tr>`+KPI_DEF.filter(d=>d.p===pi).map(d=>`<tr><td><span class="kn">${d.n}</span>${esc(d.area)}</td><td class="r num">${d.w}%</td>${PMS.map(p=>{const s=kpiScore(d.n,kqv(q,p,d.n-1));return `<td class="c"><button class="kcell" data-act="kpi" data-n="${d.n}" data-p="${p}" style="background:color-mix(in srgb, ${scoreCol(s)} ${s<60?28:18}%, transparent);color:${scoreCol(s)}">${Math.round(s)}</button></td>`}).join('')}</tr>`).join('')).join('')}
     <tr class="tot"><td>Weighted score</td><td class="r num">100%</td>${PMS.map(p=>{const sc=scorecard(p,q);return `<td class="c num"><b style="color:${scoreCol(sc.total)}">${sc.total.toFixed(1)}</b></td>`}).join('')}</tr>
   </tbody></table></div></div>`;
   return `<div class="grid g3">${cards}</div>${monthlyCard(null)}${matrix}${payMatrix(null)}`;
 }
 function pmScorecard(p,q){
   const sc = scorecard(p,q), gaps = sc.rows.slice().sort((a,b)=>(b.w-b.pts)-(a.w-a.pts)).slice(0,3);
-  const st = KSTATE[q][p], k = USERS[S.user].kind;
+  const st = kstate(q,p), k = USERS[S.user].kind;
   let action = '';
   if (q==='Q3' && st==='Ready for review' && k==='pm' && p===S.user) action = `<button class="btn primary" data-act="ksign" data-p="${p}">Sign scorecard</button><button class="btn" data-act="toast" data-t="Data query raised. It is resolved by tracker records only.">Raise data query</button>`;
   if (q==='Q3' && st==='Ready for review' && k!=='pm') action = `<span class="demo-note">Waiting for ${esc(USERS[p].name.split(' ')[0])} to sign</span>`;
@@ -1078,19 +1083,17 @@ function pmScorecard(p,q){
 }
 // Monthly progress: the email asks for monthly target vs actual; Rev 6 pays on the quarter. Jul to Sep average back to the Q3 score; Oct is Q4 to date.
 const MONTHS = ['Jul','Aug','Sep','Oct'], KTARGET = 90, KWARN = 80;
-const MONTHLY = (function(){
-  let s=11; const r=()=> (s=(s*16807)%2147483647)/2147483647;
-  const out={};
-  for (const pm of PMS){
-    out[pm] = KPI_DEF.map((d,i)=>{
-      const q3=kpiScore(d.n,KQ.Q3[pm][i]), q4=kpiScore(d.n,KQ.Q4[pm][i]);
-      if (d.p===3 || d.n===11 || d.n===12) return [q3,q3,q3,q4].map(x=>Math.round(x)); // banded or annual KPIs do not vary month to month
-      const a=clamp(q3+(r()-0.45)*14), b=clamp(q3+(r()-0.5)*12), c=clamp(3*q3-a-b);
-      return [a,b,c,q4].map(x=>Math.round(x));
-    });
-  }
-  return out;
-})();
+// Month-by-month KPI view. The preview invents monthly variation; the live app shows the quarter values only.
+const MONTHLY = new Proxy({}, {get(cache, pm){ if (typeof pm!=='string') return undefined; if (!cache[pm]) cache[pm] = monthlyFor(pm); return cache[pm]; }});
+let _ms=11; const _mr=()=> (_ms=(_ms*16807)%2147483647)/2147483647;
+function monthlyFor(pm){
+  return KPI_DEF.map((d,i)=>{
+    const q3=kpiScore(d.n,kqv('Q3',pm,i)), q4=kpiScore(d.n,kqv('Q4',pm,i));
+    if (!db.demo || d.p===3 || d.n===11 || d.n===12) return [q3,q3,q3,q4].map(x=>Math.round(x)); // banded or annual KPIs do not vary month to month
+    const a=clamp(q3+(_mr()-0.45)*14), b=clamp(q3+(_mr()-0.5)*12), c=clamp(3*q3-a-b);
+    return [a,b,c,q4].map(x=>Math.round(x));
+  });
+}
 const monthTotal = (pm,m) => KPI_DEF.reduce((a,d,i)=>a+MONTHLY[pm][i][m]*d.w/100,0);
 function monthChart(pms){
   const W=1000,H=250,l=40,rt=130,t=18,b=30, x=i=>l+i*(W-l-rt)/3, y=v=>t+(100-v)/50*(H-t-b);
@@ -1126,7 +1129,7 @@ function payMatrix(score){
 }
 function drawerKpi(n, p){
   const d = KPI_DEF[n-1], q = S.kpiQ, pm = p || (isMgr()? null : S.user);
-  const v = pm ? KQ[q][pm][n-1] : null, s = pm ? kpiScore(n,v) : null;
+  const v = pm ? kqv(q,pm,n-1) : null, s = pm ? kpiScore(n,v) : null;
   const hide360 = d.p===3 && USERS[S.user].kind==='pm';
   return `<div class="scrim" data-act="close"><aside class="drawer" role="dialog" aria-label="KPI detail" data-stop>
     <div class="drawer-h"><div style="flex:1"><div class="eyebrow">${PILLARS[d.p]}</div><h2>KPI ${n}. ${esc(d.area)}</h2><div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap"><span class="tag t-accent plain">Weight ${d.w}%</span><span class="tag plain">${esc(d.src)}</span></div></div><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div>
@@ -1135,7 +1138,7 @@ function drawerKpi(n, p){
       <div><div class="eyebrow" style="margin-bottom:8px">How it is measured</div><ul class="bul">${d.how.map(h=>`<li>${esc(h)}</li>`).join('')}</ul></div>
       <div><div class="eyebrow" style="margin-bottom:8px">Formula</div><div class="formula">${esc(d.formula)}</div></div>
       <dl class="kv"><dt>Data source</dt><dd>${esc(d.src)}</dd><dt>Recorded in Optimus</dt><dd>${esc(d.rec)}</dd><dt>Scoring</dt><dd>${n===11?'Banded (exception in Section 2)':n===14?'NPS × 2, capped 0 to 100 (exception)':'Linear: KPI score = compliance %, capped 0 to 100'}</dd>${d.p===1?'<dt>Audit</dt><dd>10% of entries spot-checked monthly against evidence</dd>':''}</dl>
-      ${pm&&isMgr()?`<div><div class="eyebrow" style="margin-bottom:8px">All PMs, ${q==='Q3'?'Q3':'Q4 to date'}</div><div class="grid" style="gap:8px">${PMS.map(x=>{const sx=kpiScore(n,KQ[q][x][n-1]);return `<div style="display:flex;align-items:center;gap:10px">${av(x)}<span style="width:110px">${esc(USERS[x].name.split(' ')[0])}</span><div class="bar" style="flex:1"><i style="width:${sx}%;background:${scoreCol(sx)}"></i></div><b class="num" style="width:28px;text-align:right">${Math.round(sx)}</b></div>`}).join('')}</div></div>`:''}
+      ${pm&&isMgr()?`<div><div class="eyebrow" style="margin-bottom:8px">All PMs, ${q==='Q3'?'Q3':'Q4 to date'}</div><div class="grid" style="gap:8px">${PMS.map(x=>{const sx=kpiScore(n,kqv(q,x,n-1));return `<div style="display:flex;align-items:center;gap:10px">${av(x)}<span style="width:110px">${esc(USERS[x].name.split(' ')[0])}</span><div class="bar" style="flex:1"><i style="width:${sx}%;background:${scoreCol(sx)}"></i></div><b class="num" style="width:28px;text-align:right">${Math.round(sx)}</b></div>`}).join('')}</div></div>`:''}
     </div></aside></div>`;
 }
 function myKpiCard(){
@@ -1156,11 +1159,11 @@ function viewPayments(){
   let body;
   if (tab==='status'){
     const list = SESSIONS.filter(s=>dayDiff(s.date)<0).sort((a,b)=>b.date.localeCompare(a.date));
-    body = `<div class="card"><div class="tbl-wrap"><table><thead><tr><th>Session</th><th>Faculty</th><th>Invoice</th><th>Payment</th><th>TDS</th><th>PM</th></tr></thead><tbody>${list.map(s=>`<tr><td><b style="font-weight:600">${esc(s.title)}</b><div style="font-size:12px;color:var(--ink-3)">${fmt(s.date)}</div></td><td>${esc(FACULTY[s.fac].name)}</td><td>${payTag(s.pay.inv)}</td><td>${payTag(s.pay.paid)}</td><td>${payTag(s.pay.tds)}</td><td>${who(s.pm)}</td></tr>`).join('')}</tbody></table></div></div>`;
+    body = `<div class="card"><div class="tbl-wrap"><table><thead><tr><th>Session</th><th>Faculty</th><th>Invoice</th><th>Payment</th><th>TDS</th><th>PM</th></tr></thead><tbody>${list.map(s=>`<tr><td><b style="font-weight:600">${esc(s.title)}</b><div style="font-size:12px;color:var(--ink-3)">${fmt(s.date)}</div></td><td>${facName(s.fac)}</td><td>${payTag(s.pay.inv)}</td><td>${payTag(s.pay.paid)}</td><td>${payTag(s.pay.tds)}</td><td>${who(s.pm)}</td></tr>`).join('')}</tbody></table></div></div>`;
   } else if (!canConf()){
     body = `<div class="card"><div class="lock">${ic('lock')}<h3>Only Rajiv and Neha can see honorariums</h3><p style="max-width:44ch;margin:0">Senior faculty honorariums are confidential. The database blocks this data for every other role, including admins.</p></div></div>`;
   } else {
-    body = `<div class="card"><div class="card-h"><h3>Senior faculty honorariums</h3><span class="tag t-warn">${ic('lock')} Visible to Rajiv and Neha only</span></div><div class="tbl-wrap"><table><thead><tr><th>Faculty</th><th>Session</th><th class="r">Amount</th><th>Status</th><th>Note</th></tr></thead><tbody>${HONORARIA.map(h=>`<tr><td><b style="font-weight:600">${esc(FACULTY[h.fac].name)}</b></td><td>${esc(SESSIONS.find(s=>s.id===h.session).title)}</td><td class="r num"><b>${inr(h.amt)}</b></td><td><span class="tag ${h.status==='Paid'?'t-good':h.status==='Approved'?'t-info':''}">${h.status}</span></td><td style="color:var(--ink-2)">${esc(h.note)}</td></tr>`).join('')}</tbody></table></div></div>`;
+    body = `<div class="card"><div class="card-h"><h3>Senior faculty honorariums</h3><span class="tag t-warn">${ic('lock')} Visible to Rajiv and Neha only</span></div><div class="tbl-wrap"><table><thead><tr><th>Faculty</th><th>Session</th><th class="r">Amount</th><th>Status</th><th>Note</th></tr></thead><tbody>${HONORARIA.map(h=>`<tr><td><b style="font-weight:600">${facName(h.fac)}</b></td><td>${esc(SESSIONS.find(s=>s.id===h.session).title)}</td><td class="r num"><b>${inr(h.amt)}</b></td><td><span class="tag ${h.status==='Paid'?'t-good':h.status==='Approved'?'t-info':''}">${h.status}</span></td><td style="color:var(--ink-2)">${esc(h.note)}</td></tr>`).join('')}</tbody></table></div></div>`;
   }
   return `<div class="page-head"><div><h1>Payments</h1><p>Faculty payment and TDS status by session.</p>${kpiFeeds([2])}</div>${tabs}</div>${body}`;
 }
@@ -1195,6 +1198,7 @@ function viewAdmin(){
 }
 
 /* ---------------- cohorts ---------------- */
+const pctTxt = v => v==null ? '—' : v+'%';
 const pctCol = v => v==null?'var(--ink-3)':v>=85?'var(--good)':v>=75?'var(--warn)':'var(--bad)';
 const ATT_C = {P:'var(--good)',L:'var(--warn)',A:'var(--bad)',E:'var(--line-2)'};
 const ATT_L = {P:'Present',L:'Late',A:'Absent',E:'Excused'};
@@ -1203,15 +1207,16 @@ function statusTagC(c){ return `<span class="tag ${c.status==='Running'?'t-good'
 function viewCohorts(){
   if (S.cohort) return viewCohort(COHORTS.find(c=>c.code===S.cohort));
   const vis = visibleCohorts();
-  const progs = ['OPM','EBAP'].filter(p=>vis.some(c=>c.prog===p));
+  const progs = [...new Set(['OPM','EBAP',...vis.map(c=>c.prog)])].filter(p=>vis.some(c=>c.prog===p));
   const running = vis.filter(c=>c.status==='Running');
-  return `<div class="page-head"><div><h1>Cohorts</h1><p>Two programmes, ${vis.length} cohort${vis.length>1?'s':''}. Open a cohort for its profile, students, assignments, attendance and analytics.</p></div><button class="btn primary" data-act="upload">${ic('upload')}Bulk upload</button></div>
-  ${progs.map(p=>`<section class="grid" style="gap:12px"><div style="display:flex;align-items:baseline;gap:10px"><h2 style="font-size:20px">${p}</h2><span class="demo-note">${vis.filter(c=>c.prog===p).length} cohorts</span></div>
+  return `<div class="page-head"><div><h1>Cohorts</h1><p>${vis.length?`${vis.length} cohort${vis.length>1?'s':''}. Open a cohort for its profile, students, assignments, attendance and analytics.`:'No cohorts yet.'}</p></div><div class="toolbar">${db.demo&&vis.length?`<button class="btn" data-act="upload">${ic('upload')}Bulk upload</button>`:''}${isMgr()?`<button class="btn primary" data-act="modal" data-m="cohortadd">${ic('plus')}Add cohort</button>`:''}</div></div>
+  ${!vis.length?`<div class="card"><div class="empty">${isMgr()?'Add your first cohort to start tracking its students.':'No cohorts are assigned to you yet.'}</div></div>`:''}
+  ${progs.map(p=>`<section class="grid" style="gap:12px"><div style="display:flex;align-items:baseline;gap:10px"><h2 style="font-size:20px">${p}</h2><span class="demo-note">${vis.filter(c=>c.prog===p).length} cohort${vis.filter(c=>c.prog===p).length===1?'':'s'}</span></div>
     <div class="grid g3">${vis.filter(c=>c.prog===p).map(c=>{const st=cohortStats(c);return `<button class="card cohort-card" data-act="cohort" data-c="${c.code}">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span class="cohort-code">${c.code}</span>${statusTagC(c)}</div>
       <div class="demo-note">${fmt(c.start)} ${D(c.start).getFullYear()} to ${fmt(c.end)} ${D(c.end).getFullYear()} · ${c.size} students</div>
-      ${c.status==='Running'?`<div class="mini-stats"><div><b class="num" style="color:${pctCol(st.att)}">${st.att}%</b><span>Attendance</span></div><div><b class="num">${st.sub}%</b><span>Submitted</span></div><div><b class="num">${st.score}%</b><span>Avg score</span></div><div><b class="num" style="color:${st.risk?'var(--bad)':'inherit'}">${st.risk}</b><span>At risk</span></div></div>`:`<div class="mini-stats"><div><b class="num">${c.size}</b><span>Admitted</span></div><div><b class="num">${fmt(c.start)}</b><span>Starts</span></div></div>`}
-      <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-2)">${av(c.pm)}<span>${esc(USERS[c.pm].name)}</span></div>
+      ${c.status==='Running'?`<div class="mini-stats"><div><b class="num" style="color:${pctCol(st.att)}">${pctTxt(st.att)}</b><span>Attendance</span></div><div><b class="num">${pctTxt(st.sub)}</b><span>Submitted</span></div><div><b class="num">${pctTxt(st.score)}</b><span>Avg score</span></div><div><b class="num" style="color:${st.risk?'var(--bad)':'inherit'}">${st.risk}</b><span>At risk</span></div></div>`:`<div class="mini-stats"><div><b class="num">${c.size}</b><span>Admitted</span></div><div><b class="num">${fmt(c.start)}</b><span>Starts</span></div></div>`}
+      <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-2)">${av(c.pm)}<span>${esc(UU(c.pm).name)}</span></div>
     </button>`}).join('')}</div></section>`).join('')}
   ${running.length>1?`<div class="card"><div class="card-h"><h3>Compare cohorts</h3><small>Running cohorts, programme to date</small></div><div class="card-b">${compareChart(running)}</div></div>`:''}`;
 }
@@ -1327,6 +1332,67 @@ function uploadModal(){
   return `<div class="scrim center" data-act="close"><div class="modal wide" role="dialog" aria-label="Bulk upload" data-stop><div class="drawer-h"><div style="flex:1"><div class="eyebrow">Step ${u.step} of 2 · ${u.step===1?'Choose file':'Check before saving'}</div><h2>Bulk upload</h2></div><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div><div class="drawer-b">${body}</div><div class="modal-f">${foot}</div></div></div>`;
 }
 
+/* ---------------- add cohort ---------------- */
+let coStudents = null, coFileName = '';
+function cohortForm(){
+  coStudents = null; coFileName = '';
+  const people = Object.entries(USERS).sort((a,b)=>(a[1].kind==='pm'?0:1)-(b[1].kind==='pm'?0:1) || a[1].name.localeCompare(b[1].name));
+  const progs = [...new Set(['OPM','EBAP',...COHORTS.map(c=>c.prog)])];
+  return `<div class="grid coform" style="gap:12px">
+    <div class="grid g2"><div class="field"><label for="co-n">Cohort name</label><input id="co-n" placeholder="e.g. OPMC4" maxlength="40"></div>
+    <div class="field"><label for="co-p">Programme</label><select id="co-p">${progs.map(p=>`<option>${esc(p)}</option>`).join('')}</select></div></div>
+    <div class="field"><label for="co-pm">Programme manager</label><select id="co-pm"><option value="">Choose a person</option>${people.map(([k,u])=>`<option value="${k}">${esc(u.name)}${u.role?' · '+esc(u.role):''}</option>`).join('')}</select></div>
+    <div class="grid g2"><div class="field"><label for="co-s">Start date</label><input id="co-s" type="date" value="${TODAY_ISO}"></div><div class="field"><label for="co-e">End date</label><input id="co-e" type="date"></div></div>
+    <div class="field"><label for="co-f">Format <span style="font-weight:400;color:var(--ink-3)">(optional)</span></label><input id="co-f" placeholder="e.g. Hybrid: monthly residency and weekly online classes"></div>
+    <div class="drop" id="co-drop"><div style="font-weight:600" id="co-fname">Upload the students in this cohort</div><div class="demo-note">Excel or CSV with a <b>Name</b> column. Email, Phone and Company are optional.</div><div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap"><label class="btn sm" for="co-file">${ic('upload')}Choose file</label><button class="btn ghost sm" type="button" data-act="cotemplate">${ic('download')}Download template</button></div><input id="co-file" type="file" accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" hidden></div>
+    <div id="co-prev" class="demo-note">You can also add the cohort now and upload students later.</div>
+    <span class="sc-err" id="co-err"></span>
+  </div>`;
+}
+async function cohortParse(file){
+  const g = id=>document.getElementById(id), prev = g('co-prev');
+  coStudents = null; coFileName = file.name;
+  g('co-fname').textContent = file.name + ' · reading…';
+  try {
+    const X = await import('xlsx'), wb = X.read(await file.arrayBuffer(), {type:'array'});
+    const raw = X.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1, defval:'', blankrows:false});
+    if (!raw.length) throw new Error('The file is empty.');
+    const head = raw[0].map(h=>String(h).trim().toLowerCase());
+    const col = (...names) => head.findIndex(h => names.some(n => h===n || h.includes(n)));
+    let iName = col('student name','full name','name');
+    const hasHeader = iName >= 0 || head.some(h=>/email|phone|company|mobile/.test(h));
+    if (iName < 0) iName = 0;
+    const iEmail = col('email','e-mail','mail'), iPhone = col('phone','mobile','contact'), iCo = col('company','organisation','organization','business');
+    const body = hasHeader ? raw.slice(1) : raw, skipped = [];
+    const list = [];
+    body.forEach((r,i)=>{ const name = String(r[iName]||'').trim(); if (!name){ if (r.some(x=>String(x).trim())) skipped.push(i+(hasHeader?2:1)); return; }
+      list.push({name, email: iEmail>=0?String(r[iEmail]||'').trim():'', phone: iPhone>=0?String(r[iPhone]||'').trim():'', company: iCo>=0?String(r[iCo]||'').trim():''}); });
+    if (!list.length) throw new Error('No student names found. Put the names in a column called "Name".');
+    coStudents = list;
+    g('co-fname').textContent = file.name + ' · ' + list.length + ' student' + (list.length===1?'':'s');
+    g('co-drop').style.borderColor = 'var(--good)';
+    prev.innerHTML = `<b style="color:var(--ink)">${list.length} student${list.length===1?'':'s'} ready to add:</b> ${list.slice(0,6).map(x=>esc(x.name)).join(', ')}${list.length>6?` and ${list.length-6} more`:''}${skipped.length?`<br>Skipped ${skipped.length} row${skipped.length===1?'':'s'} with no name (row ${skipped.slice(0,5).join(', ')}${skipped.length>5?'…':''}).`:''}`;
+  } catch(e){
+    coStudents = null; g('co-fname').textContent = 'Upload the students in this cohort'; g('co-drop').style.borderColor = 'var(--bad)';
+    prev.innerHTML = `<span class="sc-err">Could not read ${esc(file.name)}: ${esc(e && e.message || 'unknown error')}</span>`;
+  }
+}
+document.addEventListener('change', e=>{ if (e.target.id==='co-file' && e.target.files[0]) cohortParse(e.target.files[0]); });
+document.addEventListener('input', e=>{ if (e.target.closest && e.target.closest('.coform')){ const x=document.getElementById('co-err'); if (x) x.textContent=''; } });
+function cohortSave(){
+  const g = id=>document.getElementById(id), val = id=>g(id).value.trim();
+  const code = val('co-n').replace(/\s+/g,' '), pm = val('co-pm'), start = val('co-s'), end = val('co-e');
+  const err = !code ? 'Give the cohort a name.' : COHORTS.some(c=>c.code.toLowerCase()===code.toLowerCase()) ? `A cohort called ${code} already exists.` : !pm ? 'Choose the programme manager.' : !start ? 'Add the start date.' : (end && end < start) ? 'The end date is before the start date.' : (g('co-file').files[0] && !coStudents) ? 'Fix the student file, or remove it, before saving.' : '';
+  if (err){ g('co-err').textContent = err; return null; }
+  const students = (coStudents||[]).map((x,i)=>({id: code+'-'+String(i+1).padStart(3,'0'), name:x.name, email:x.email, phone:x.phone, company:x.company, cohort:code, pm, att:null, attRec:[], subs:[], avg:null, last:null, ones:[]}));
+  const c = {code, prog: val('co-p'), status: start > TODAY_ISO ? 'In preparation' : 'Running', pm, start, end: end || start, format: val('co-f'), size: students.length, sessions:0, faculty:[], keydates:[], sess:[], asg:[], students};
+  COHORTS.push(c);
+  STUDENTS = COHORTS.filter(x=>x.status==='Running').flatMap(x=>x.students||[]);
+  AUDIT.unshift([nowStamp(), S.user, 'added cohort', `${code} · ${students.length} student${students.length===1?'':'s'}`]);
+  coStudents = null;
+  return c;
+}
+
 /* ---------------- drawers & modals ---------------- */
 function drawerTask(t){
   const canEdit = t.owner===S.user || t.by===S.user || canConf();
@@ -1424,6 +1490,7 @@ document.addEventListener('input', e=>{ if (e.target.closest && e.target.closest
 document.addEventListener('change', e=>{ if (e.target.closest && e.target.closest('.sched')) schedPreview(); });
 function modal(kind, id){
   if (kind==='invoice') return `<div class="scrim center" data-act="close"><div class="modal xwide" role="dialog" aria-label="Create invoice" data-stop><div class="drawer-h"><div style="flex:1"><div class="eyebrow">Standard Reverentia invoice</div><h2>Create invoice</h2></div><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div><div class="drawer-b">${invForm()}</div><div class="modal-f"><button class="btn" data-act="close">Cancel</button><button class="btn" data-act="save" data-m="invoice" data-draft="1">Save as draft</button><button class="btn" data-act="save" data-m="invoice">Create and mark as sent</button><button class="btn primary" data-act="save" data-m="invoice" data-dl="1">${ic('download')}Create and download invoice</button></div></div></div>`;
+  if (kind==='cohortadd') return `<div class="scrim center" data-act="close"><div class="modal wide" role="dialog" aria-label="Add cohort" data-stop><div class="drawer-h"><div style="flex:1"><div class="eyebrow">Cohorts</div><h2>Add cohort</h2></div><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div><div class="drawer-b">${cohortForm()}</div><div class="modal-f"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="save" data-m="cohortadd">Add cohort</button></div></div></div>`;
   if (kind==='facform') return `<div class="scrim center" data-act="close"><div class="modal wide" role="dialog" aria-label="${id?'Edit faculty':'Add faculty'}" data-stop><div class="drawer-h"><div style="flex:1"><div class="eyebrow">Faculty directory</div><h2>${id?'Edit '+esc(FACULTY[id].name):'Add faculty'}</h2></div><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div><div class="drawer-b">${facForm(id)}</div><div class="modal-f"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="save" data-m="facform" data-id="${id||''}">${id?'Save changes':'Add to directory'}</button></div></div></div>`;
   if (kind==='invrecv') return `<div class="scrim center" data-act="close"><div class="modal wide" role="dialog" aria-label="Attach received invoice" data-stop><div class="drawer-h"><div style="flex:1"><div class="eyebrow">Faculty invoices</div><h2>Attach received invoice</h2></div><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div><div class="drawer-b">${recvForm(id)}</div><div class="modal-f"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="save" data-m="invrecv">Save and send for approval</button></div></div></div>`;
   if (kind==='facdel'){ const f=FACULTY[id]; return `<div class="scrim center" data-act="close"><div class="modal" role="dialog" aria-label="Remove faculty" data-stop><div class="drawer-h"><h2>Remove ${esc(f.name)}?</h2><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div><div class="drawer-b"><p style="margin:0">${esc(f.name)} will no longer appear in the directory or when scheduling classes and creating invoices.</p><p class="demo-note" style="margin:0">Past sessions, invoices and payments keep their name, so records stay complete. This is logged in the audit log.</p></div><div class="modal-f"><button class="btn" data-act="close">Keep</button><button class="btn primary" data-act="save" data-m="facdel" data-id="${id}" style="background:var(--bad);border-color:var(--bad)">Remove from directory</button></div></div></div>`; }
@@ -1482,7 +1549,7 @@ root.addEventListener('click', e=>{
     case 'cback': S.cohort=null; render(); break;
     case 'ctab': S.ctab=el.dataset.v; render(); break;
     case 'student': S.drawer=['student',el.dataset.id]; render(); break;
-    case 'upload': S.up={step:1,type:S.cohort&&S.ctab==='attendance'?'attendance':'attendance',cohort:S.cohort||visibleCohorts()[0].code}; render(); break;
+    case 'upload': S.up={step:1,type:S.cohort&&S.ctab==='attendance'?'attendance':'attendance',cohort:S.cohort||(visibleCohorts()[0]||{}).code}; if (!S.up.cohort){ S.up=null; toast('Add a cohort first'); break; } render(); break;
     case 'upsample': S.up.step=2; render(); break;
     case 'upback': S.up.step=1; render(); break;
     case 'upcommit': { const c=COHORTS.find(x=>x.code===S.up.cohort); S.up=null; toast(`Imported ${c.students.length} rows into ${c.code}. 2 rows skipped.`); break; }
@@ -1496,6 +1563,7 @@ root.addEventListener('click', e=>{
     case 'invapprove': { const v=INVOICES.find(x=>x.id===el.dataset.id); v.status='sent'; v.approvedBy=S.user; AUDIT.unshift([nowStamp(),S.user,'approved invoice',v.no+' · '+v.from.name]); render(); toast(`${v.no} approved. It is now waiting for payment.`); break; }
     case 'attdl': { const v=INVOICES.find(x=>x.id===el.dataset.id); if (v&&v.att&&v.att.blob) saveFile(v.att.name, v.att.blob); else if (v&&v.att&&v.att.path) db.fileBlob(v.att.path).then(b=>saveFile(v.att.name,b)).catch(()=>toast('Could not download the file')); break; }
     case 'attopen': { const v=INVOICES.find(x=>x.id===el.dataset.id); const w=window.open('about:blank','_blank'); db.fileUrl(v.att.path).then(u=>{ if (w) w.location=u; else window.open(u,'_blank'); }).catch(()=>{ if (w) w.close(); toast('Could not open the file'); }); break; }
+    case 'cotemplate': { const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob(['Name,Email,Phone,Company\nAarav Mehta,aarav@example.com,+91 98100 00000,Mehta Group\n'], {type:'text/csv'})); a.download='Optimus students template.csv'; document.body.appendChild(a); a.click(); a.remove(); break; }
     case 'facpay': S.facPay=el.dataset.v; render(); break;
     case 'invpdf': e.stopPropagation(); invPdf(INVOICES.find(x=>x.id===el.dataset.id)); break;
     case 'invxlsx': invXlsx(); break;
@@ -1505,6 +1573,7 @@ root.addEventListener('click', e=>{
     case 'save': { const m=el.dataset.m; let msg='Saved';
       if (m==='sched'){ const d=schedRead(), err=schedCheck(d); if (err){ schedPreview(); break; } const id=newId('S-', 320+SESSIONS.length-9); SESSIONS.push({id,date:d.date,time:d.time,prog:d.prog,cohort:d.cohort,title:d.title,mode:d.mode,venue:d.mode==='Online'?'Zoom':d.venue,zoom:d.mode==='Offline'?null:d.zoom,cal:true,fac:d.fac,pm:S.user==='rajiv'||S.user==='neha'||S.user==='madhav'?((COHORTS.find(c=>c.code===d.cohort)||{}).pm||'ananya'):S.user,notes:false,check:[d.fac?1:0,1,0,1,0],pay:{inv:'Not due',paid:'Not due',tds:'Not due'}}); S.sessTab='upcoming'; msg=`${d.title} scheduled · Google Calendar invite sent to ${d.inv} guests with the ${d.mode==='Offline'?'venue':'Zoom link'}`; }
       if (m==='invoice'){ S.invTried=true; const v=invRead(), err=invCheck(v); if (err){ invPreview(); break; } v.items=v.items.filter(i=>i.d||i.r); v.id=newId('IV-', 49+INVOICES.length-8); invNext[v.type]++; v.status=el.dataset.draft?'draft':'sent'; INVOICES.unshift(v); S.invTried=false; S.view='invoices'; S.invF='all'; S.drawer=['inv',v.id]; msg=`${v.no} ${v.status==='draft'?'saved as a draft':'created for '+rs(invCalc(v).total)}`; if (el.dataset.dl){ S.modal=null; render(); invPdf(v); break; } }
+      if (m==='cohortadd'){ const c=cohortSave(); if (!c) break; S.view='cohorts'; S.cohort=c.code; S.ctab='profile'; msg=`${c.code} added with ${c.size} student${c.size===1?'':'s'}`; }
       if (m==='facform'){ const r=facSave(el.dataset.id||null); if (!r) break; AUDIT.unshift([nowStamp(),S.user,r.isNew?'added faculty':'edited faculty',r.name]); S.drawer=['fac',r.id]; msg = r.isNew ? `${r.name} added to the faculty directory` : `${r.name}'s profile updated`; }
       if (m==='invrecv'){ const v=recvSave(); if (!v) break; AUDIT.unshift([nowStamp(),S.user,'attached faculty invoice',v.no+' · '+v.from.name]); S.drawer=['inv',v.id]; msg=`Invoice from ${v.from.name} attached. Sent to Neha and Rajiv for approval.`; }
       if (m==='facdel'){ const f=FACULTY[el.dataset.id]; f.removed=true; AUDIT.unshift([nowStamp(),S.user,'removed faculty',f.name]); S.drawer=null; msg=`${f.name} removed from the directory`; }
@@ -1522,8 +1591,8 @@ root.addEventListener('click', e=>{
     case 'kq': S.kpiQ=el.dataset.v; render(); break;
     case 'kpm': S.kpiPm=el.dataset.v; if (el.dataset.go){ S.view='kpis'; window.scrollTo(0,0); } render(); break;
     case 'kpi': e.stopPropagation(); S.drawer=['kpi', el.dataset.n, el.dataset.p]; render(); break;
-    case 'ksign': KSTATE.Q3[el.dataset.p]='Signed by PM'; render(); toast('Scorecard signed. Sent to Rajiv to approve and lock.'); break;
-    case 'klock': KSTATE.Q3[el.dataset.p]='Locked'; render(); toast(`${USERS[el.dataset.p].name}'s Q3 scorecard approved and locked`); break;
+    case 'ksign': (KSTATE.Q3=KSTATE.Q3||{})[el.dataset.p]='Signed by PM'; render(); toast('Scorecard signed. Sent to Rajiv to approve and lock.'); break;
+    case 'klock': (KSTATE.Q3=KSTATE.Q3||{})[el.dataset.p]='Locked'; render(); toast(`${USERS[el.dataset.p].name}'s Q3 scorecard approved and locked`); break;
     case 'paytab': S.payTab=el.dataset.v; render(); break;
     case 'admintab': S.adminTab=el.dataset.v; render(); break;
     case 'toast': toast(el.dataset.t); break;

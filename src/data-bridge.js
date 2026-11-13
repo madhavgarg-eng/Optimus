@@ -13,8 +13,9 @@ export function setupData(db, B) {
     if (m.kind === 'pm') B.pms.push(m.key);
   }
 
-  const seeding = db.rows.length === 0;
-  if (!seeding) B.hydrate(db.rows);
+  // Production never loads the prototype's sample data: an empty database means an empty workspace.
+  const seeding = false;
+  B.hydrate(db.rows);
   B.audit.length = 0;
   B.audit.push(...db.audit);
   B.login(db.me);
@@ -77,5 +78,4 @@ export function setupData(db, B) {
   window.addEventListener('beforeunload', e => { if (running || failed) { e.preventDefault(); e.returnValue = ''; } });
 
   B.render();
-  if (seeding) { B.toast('Setting up your workspace with the starter data…'); sync(); }
 }

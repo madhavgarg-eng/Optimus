@@ -53,8 +53,6 @@ async function start() {
   try { ws = await loadWorkspace(session.user.email); }
   catch (e) { console.error(e); return message('Could not load Optimus', esc(e.message) + '<br>Check that the database setup script has been run in Supabase.'); }
   if (!ws.me) return message('You are not on the team list yet', `You are signed in as <b>${esc(session.user.email)}</b>, but that email is not in Optimus's team list. Ask your admin to add it.`);
-  if (!ws.rows.length && !['chair', 'head'].includes(ws.me.kind))
-    return message('Workspace not set up yet', 'Rajiv or Neha needs to sign in once first to set up the workspace. Try again after that.');
   bootOptimus({
     demo: false, status: '', me: ws.me.key, members: ws.members, rows: ws.rows, audit: ws.audit,
     signOut, saveRows, addAudit, upload, fileUrl, fileBlob

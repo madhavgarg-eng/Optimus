@@ -73,5 +73,5 @@ Without the env variables, the app runs the original preview: sample data, kept 
 ## Known limits of this first version
 - Each person sees changes made by others after they reload the page. There is no live sync yet.
 - If two people edit the same item at the same moment, the last save wins.
-- KPI scores show "No data yet" until KPI entry or imports are built. Student attendance and scores bulk upload is not built yet (adding a cohort's students is).
+- KPI scores show "No data yet" until KPI entry or imports are built. Assignment scores upload is not built yet. Student attendance can be marked by hand or uploaded per session (Cohorts, then a cohort, then Attendance).
 - Password reset is done by an admin in Supabase (**Authentication**, then **Users**). Email-based reset is limited on the free plan's built-in mailer.

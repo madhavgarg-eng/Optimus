@@ -1292,6 +1292,115 @@ const pctTxt = v => v==null ? '—' : v+'%';
 const pctCol = v => v==null?'var(--ink-3)':v>=85?'var(--good)':v>=75?'var(--warn)':'var(--bad)';
 const ATT_C = {P:'var(--good)',L:'var(--warn)',A:'var(--bad)',E:'var(--line-2)'};
 const ATT_L = {P:'Present',L:'Late',A:'Absent',E:'Excused'};
+
+/* ---------------- attendance: mark by hand, or fill from an Excel/CSV sheet ---------------- */
+// c.sess = [{n, date, title}] ; student.attRec[i] = 'P'|'L'|'A'|'E'|null for session i ; student.att = % present or late, excused not counted
+const canMarkAtt = c => !!c && (c.pm===S.user || isMgr());
+function attRecalc(c){
+  c.students.forEach(s=>{ const rec = c.sess.map((_,i)=>s.attRec[i]||null); s.attRec = rec;
+    const counted = rec.filter(v=>v && v!=='E'); s.att = counted.length ? Math.round(counted.filter(v=>v!=='A').length/counted.length*100) : null; });
+  c.sessions = c.sess.length;
+}
+let ATT = null; // the open sheet: {code, idx (session index or -1 for new), marks:{studentId:code}, note}
+function attOpen(code){
+  const c = COHORTS.find(x=>x.code===code); if (!c) return;
+  const idx = c.sess.findIndex(x=>x.date===TODAY_ISO);
+  ATT = {code, idx, date:TODAY_ISO, title:'', marks:{}, note:''};
+  if (idx>=0) c.students.forEach(s=>{ if (s.attRec[idx]) ATT.marks[s.id]=s.attRec[idx]; });
+  S.modal = ['attmark', code];
+}
+function attSessOptions(c){
+  const sched = SESSIONS.filter(x=>x.cohort===c.code && !c.sess.some(y=>y.date===x.date)).sort((a,b)=>a.date.localeCompare(b.date));
+  return `${c.sess.map((x,i)=>`<option value="${i}" ${ATT.idx===i?'selected':''}>Session ${x.n} · ${fmtLong(x.date)}${x.title?' · '+esc(x.title):''}</option>`).join('')}
+    <option value="-1" ${ATT.idx<0?'selected':''}>New session…</option>
+    ${sched.length?`<optgroup label="Scheduled classes">${sched.map(x=>`<option value="s:${x.id}">${fmtLong(x.date)} · ${esc(x.title)}</option>`).join('')}</optgroup>`:''}`;
+}
+function attForm(code){
+  const c = COHORTS.find(x=>x.code===code), A = ATT;
+  const counts = {P:0,L:0,A:0,E:0}; let unmarked = 0;
+  c.students.forEach(s=>{ const v=A.marks[s.id]; if (v) counts[v]++; else unmarked++; });
+  return `<div class="grid attf" style="gap:14px">
+    <div class="grid g2"><div class="field"><label for="at-s">Session</label><select id="at-s">${attSessOptions(c)}</select></div>
+      <div class="field" ${A.idx<0?'':'hidden'}><label for="at-d">Date of the new session</label><input id="at-d" type="date" value="${A.date}"></div></div>
+    <div class="field" ${A.idx<0?'':'hidden'}><label for="at-t">Topic (optional)</label><input id="at-t" value="${esc(A.title)}" placeholder="e.g. Succession planning"></div>
+    <div class="att-up"><div><b>Upload instead</b><span class="demo-note" style="display:block">Excel or CSV with a Student ID, email or name column, and a Status column (P, L, A or E, or the words Present, Late, Absent, Excused). It fills in the sheet below for you to check.</span></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><label class="btn sm" for="at-file">${ic('upload')}Choose file</label><input id="at-file" type="file" accept=".xlsx,.xls,.csv" class="sr-only"><button class="btn sm" type="button" data-act="attdltpl" data-id="${esc(code)}">${ic('download')}Template for ${esc(code)}</button></div></div>
+    <div id="at-note" tabindex="-1" role="status" class="demo-note" style="margin:0">${esc(A.note)}</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><span id="at-sum" class="demo-note" style="margin:0" aria-live="polite">${counts.P} present · ${counts.L} late · ${counts.A} absent · ${counts.E} excused · ${unmarked} not marked</span>
+      <span style="display:flex;gap:6px"><button class="btn sm" type="button" data-act="attall" data-v="P">Mark everyone present</button><button class="btn sm" type="button" data-act="attall" data-v="">Clear</button></span></div>
+    ${c.students.length?`<div class="att-list">${c.students.map(st=>`<fieldset class="att-row"><legend><b>${esc(st.name)}</b> <span class="mono" style="color:var(--ink-3)">${esc(st.id)}</span></legend><div class="att-opts">${['P','L','A','E'].map(k=>`<label class="att-opt att-${k}"><input type="radio" name="at-${esc(st.id)}" value="${k}" data-sid="${esc(st.id)}" ${A.marks[st.id]===k?'checked':''}><span>${ATT_L[k]}</span></label>`).join('')}</div></fieldset>`).join('')}</div>`:'<div class="empty">This cohort has no students yet.</div>'}
+    <span class="sc-err" id="at-err"></span>
+  </div>`;
+}
+function attSummary(){
+  const c = COHORTS.find(x=>x.code===ATT.code), el = document.getElementById('at-sum'); if (!el) return;
+  const counts = {P:0,L:0,A:0,E:0}; let un = 0; c.students.forEach(s=>{ const v=ATT.marks[s.id]; if (v) counts[v]++; else un++; });
+  el.textContent = `${counts.P} present · ${counts.L} late · ${counts.A} absent · ${counts.E} excused · ${un} not marked`;
+}
+const ATT_WORDS = {p:'P',present:'P',yes:'P',y:'P','1':'P',l:'L',late:'L',a:'A',absent:'A',no:'A',n:'A','0':'A',e:'E',excused:'E',leave:'E','on leave':'E'};
+async function attParse(file){
+  const c = COHORTS.find(x=>x.code===ATT.code), note = document.getElementById('at-note');
+  note.textContent = `Reading ${file.name}…`;
+  try {
+    const X = await import('xlsx'), wb = X.read(await file.arrayBuffer(), {type:'array'});
+    const raw = X.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1, defval:'', blankrows:false});
+    if (raw.length < 2) throw new Error('The file has no rows under the header.');
+    const head = raw[0].map(h=>String(h).trim().toLowerCase());
+    const col = (...n) => head.findIndex(h => n.some(x => h===x || h.includes(x)));
+    const iId = col('student id','id','roll'), iEm = col('email'), iNm = col('student name','name'), iSt = col('status','attendance','present','mark');
+    if (iSt < 0) throw new Error('No Status column found. Use the template.');
+    if (iId < 0 && iEm < 0 && iNm < 0) throw new Error('No Student ID, email or name column found. Use the template.');
+    let filled = 0; const missing = [], bad = [];
+    raw.slice(1).forEach((r, k) => {
+      const id = iId>=0 ? String(r[iId]).trim().toLowerCase() : '', em = iEm>=0 ? String(r[iEm]).trim().toLowerCase() : '', nm = iNm>=0 ? String(r[iNm]).trim().toLowerCase() : '';
+      if (!id && !em && !nm) return;
+      const st = c.students.find(s => (id && s.id.toLowerCase()===id) || (em && (s.email||'').toLowerCase()===em) || (nm && s.name.toLowerCase()===nm));
+      const v = ATT_WORDS[String(r[iSt]).trim().toLowerCase()];
+      if (!st) { missing.push(r[iId]||r[iEm]||r[iNm]); return; }
+      if (!v) { bad.push(`row ${k+2}`); return; }
+      ATT.marks[st.id] = v; filled++;
+    });
+    ATT.note = `${file.name}: filled ${filled} student${filled===1?'':'s'}.` + (missing.length ? ` Not in this cohort: ${missing.slice(0,5).join(', ')}${missing.length>5?` and ${missing.length-5} more`:''}.` : '') + (bad.length ? ` Status not understood on ${bad.slice(0,5).join(', ')}${bad.length>5?' and more':''}.` : '') + ' Check the sheet, then save.';
+  } catch(e) { ATT.note = 'Could not read the file. ' + (e.message||''); }
+  render();
+  const n = document.getElementById('at-note'); if (n) n.focus();
+}
+function attSave(){
+  const c = COHORTS.find(x=>x.code===ATT.code), err = document.getElementById('at-err');
+  if (!Object.keys(ATT.marks).length){ err.textContent = 'Mark at least one student, or upload a sheet.'; return null; }
+  let idx = ATT.idx;
+  if (idx < 0){
+    const date = ATT.date; if (!date){ err.textContent = 'Add the date of the session.'; return null; }
+    if (c.sess.some(x=>x.date===date)){ err.textContent = `There is already a session on ${fmtLong(date)}. Choose it from the list.`; return null; }
+    const before = c.sess.map(x=>x.date);
+    c.sess.push({n:0, date, title:ATT.title});
+    c.sess.sort((a,b)=>a.date.localeCompare(b.date));
+    // keep each student's marks lined up with the sessions in date order
+    c.students.forEach(st=>{ const m = {}; before.forEach((d,i)=>{ m[d] = st.attRec[i] || null; }); st.attRec = c.sess.map(x=>m[x.date] || null); });
+    c.sess.forEach((x,i)=>x.n=i+1);
+    idx = c.sess.findIndex(x=>x.date===date);
+  }
+  c.students.forEach(s=>{ if (ATT.marks[s.id]) s.attRec[idx] = ATT.marks[s.id]; });
+  attRecalc(c);
+  const n = Object.keys(ATT.marks).length, sess = c.sess[idx];
+  AUDIT.unshift([nowStamp(), S.user, 'marked attendance', `${c.code} · session ${sess.n} (${fmt(sess.date)}) · ${n} student${n===1?'':'s'}`]);
+  ATT = null;
+  return `Attendance saved for ${c.code}, session ${sess.n} on ${fmtLong(sess.date)}`;
+}
+document.addEventListener('change', e=>{
+  if (!ATT || !e.target.closest || !e.target.closest('.attf')) return;
+  const t = e.target, c = COHORTS.find(x=>x.code===ATT.code);
+  if (t.name && t.name.startsWith('at-') && t.type==='radio'){ ATT.marks[t.dataset.sid] = t.value; attSummary(); return; }
+  if (t.id==='at-file' && t.files[0]){ attParse(t.files[0]); return; }
+  if (t.id==='at-s'){ const v = t.value;
+    if (v.startsWith('s:')){ const x = SESSIONS.find(y=>y.id===v.slice(2)); ATT.idx = -1; ATT.date = x.date; ATT.title = x.title; }
+    else { ATT.idx = +v; if (ATT.idx>=0){ ATT.marks = {}; c.students.forEach(s=>{ if (s.attRec[ATT.idx]) ATT.marks[s.id]=s.attRec[ATT.idx]; }); } else { ATT.date = TODAY_ISO; ATT.title = ''; } }
+    render(); const sel = document.getElementById('at-s'); if (sel) sel.focus(); return; }
+  if (t.id==='at-d') ATT.date = t.value;
+  if (t.id==='at-t') ATT.title = t.value.trim();
+});
+document.addEventListener('input', e=>{ if (ATT && e.target.id==='at-t') ATT.title = e.target.value.trim(); if (ATT && e.target.id==='at-d') ATT.date = e.target.value; });
+
 function statusTagC(c){ return `<span class="tag ${c.status==='Running'?'t-good':'t-info'}">${c.status}</span>`; }
 
 function viewCohorts(){
@@ -1336,25 +1445,26 @@ function viewCohort(c){
   if (tab==='assignments') body = c.asg.length? `<div class="card"><div class="card-h"><h2 class="h3">Assignments</h2><button class="btn sm primary" data-act="toast" data-t="Assignment form opens here">${ic('plus')}New assignment</button></div><div class="tbl-wrap"><table><thead><tr><th>Assignment</th><th>Due</th><th class="r">On time</th><th class="r">Late</th><th class="r">Missing</th><th class="r">Avg score</th></tr></thead><tbody>
     ${c.asg.map((a,i)=>{const subs=c.students.map(s=>s.subs[i]);const on=subs.filter(x=>x.st==='On time').length,la=subs.filter(x=>x.st==='Late').length,mi=subs.filter(x=>x.st==='Missing').length;const sc=subs.filter(x=>x.score!=null);const av2=sc.length?(sc.reduce((a,x)=>a+x.score,0)/sc.length).toFixed(1):'—';return `<tr><td><b style="font-weight:600">${esc(a.title)}</b><div class="demo-note">Assignment ${a.n} · out of ${a.max}</div></td><td class="num">${fmt(a.due)}</td><td class="r num">${on}</td><td class="r num">${la}</td><td class="r num">${mi?`<span class="tag t-bad">${mi}</span>`:'0'}</td><td class="r num"><b>${av2}</b> / ${a.max}</td></tr>`}).join('')}
     </tbody></table></div></div>` : `<div class="card"><div class="empty">No assignments yet. ${c.code} starts on ${fmtLong(c.start)} ${D(c.start).getFullYear()}.</div></div>`;
-  if (tab==='attendance') body = c.sess.length? `<div class="card"><div class="card-h"><h2 class="h3">Attendance by session</h2><div class="toolbar"><button class="btn sm" data-act="upload">${ic('upload')}Bulk upload</button><button class="btn sm primary" data-act="toast" data-t="Attendance sheet opens for today's session">Mark attendance</button></div></div>
-    <div class="tbl-wrap"><table class="heat"><thead><tr><th>Student</th>${c.sess.map(x=>`<th title="${fmt(x.date)}">S${x.n}</th>`).join('')}<th class="r">Total</th></tr></thead><tbody>
-    ${c.students.map(s=>`<tr class="click" data-act="student" data-id="${s.id}"><td style="white-space:nowrap">${esc(s.name)}</td>${s.attRec.map((v,i)=>`<td><span class="hcell" style="background:${ATT_C[v]}" title="${esc(s.name)}, S${i+1} ${fmt(c.sess[i].date)}: ${ATT_L[v]}">${v}</span></td>`).join('')}<td class="r num" style="color:${pctCol(s.att)}"><b>${s.att}%</b></td></tr>`).join('')}
-    </tbody></table></div><div class="legend" style="padding:0 18px 14px">${Object.keys(ATT_C).map(k=>`<span><i style="background:${ATT_C[k]}"></i>${ATT_L[k]}</span>`).join('')}</div></div>` : `<div class="card"><div class="empty">Attendance opens with the first session on ${fmtLong(c.start)} ${D(c.start).getFullYear()}.</div></div>`;
+  if (tab==='attendance') { const mk = canMarkAtt(c) ? `<button class="btn sm primary" data-act="attmark" data-id="${esc(c.code)}">${ic('check')}Mark or upload attendance</button>` : '';
+    body = c.sess.length? `<div class="card"><div class="card-h"><h2 class="h3">Attendance by session</h2><div class="toolbar">${db.demo?`<button class="btn sm" data-act="upload">${ic('upload')}Bulk upload</button>`:''}${mk}</div></div>
+    <div class="tbl-wrap"><table class="heat"><caption class="sr-only">Attendance for ${esc(c.code)}, one column per session</caption><thead><tr><th scope="col">Student</th>${c.sess.map(x=>`<th scope="col" title="${fmt(x.date)}"><span aria-hidden="true">S${x.n}</span><span class="sr-only">Session ${x.n}, ${fmt(x.date)}</span></th>`).join('')}<th class="r" scope="col">Total</th></tr></thead><tbody>
+    ${c.students.map(s=>`<tr class="click" data-act="student" data-id="${s.id}"><th scope="row" style="white-space:nowrap;font-weight:400">${esc(s.name)}</th>${c.sess.map((x,i)=>{const v=s.attRec[i];return v?`<td><span class="hcell" style="background:${ATT_C[v]}" title="${esc(s.name)}, S${i+1} ${fmt(x.date)}: ${ATT_L[v]}"><span aria-hidden="true">${v}</span><span class="sr-only">${ATT_L[v]}</span></span></td>`:`<td><span class="demo-note" title="Not marked">–</span><span class="sr-only">Not marked</span></td>`}).join('')}<td class="r num" style="color:${pctCol(s.att)}"><b>${pctTxt(s.att)}</b></td></tr>`).join('')}
+    </tbody></table></div><div class="legend" style="padding:0 18px 14px">${Object.keys(ATT_C).map(k=>`<span><i style="background:${ATT_C[k]}"></i>${ATT_L[k]}</span>`).join('')}</div></div>` : `<div class="card"><div class="empty">No attendance yet. ${canMarkAtt(c)?'Mark the first session by hand, or upload a sheet.':'The programme manager marks it after each session.'}${mk?`<div style="margin-top:12px">${mk}</div>`:''}</div></div>`; }
   if (tab==='analytics') body = c.sess.length? `<div class="grid g4">
-      <div class="card stat"><span class="lbl">Average attendance</span><span class="val num" style="color:${pctCol(st.att)}">${st.att}%</span><span class="sub">Across ${c.sess.length} sessions</span></div>
+      <div class="card stat"><span class="lbl">Average attendance</span><span class="val num" style="color:${pctCol(st.att)}">${pctTxt(st.att)}</span><span class="sub">Across ${c.sess.length} session${c.sess.length===1?'':'s'}</span></div>
       <div class="card stat"><span class="lbl">Submission rate</span><span class="val num">${st.sub}%</span><span class="sub">${c.asg.length} assignments</span></div>
       <div class="card stat"><span class="lbl">Average score</span><span class="val num">${st.score}%</span><span class="sub">Of maximum marks</span></div>
       <div class="card stat ${st.risk?'alert':''}"><span class="lbl">At-risk students</span><span class="val num">${st.risk}</span><span class="sub">Below 75% attendance</span></div></div>
     <div class="grid g21"><div class="card"><div class="card-h"><h2 class="h3">Attendance per session</h2><small>Share of students present or late</small></div><div class="card-b">${trendChart(c)}</div></div>
       <div class="card"><div class="card-h"><h2 class="h3">Score distribution</h2><small>Students by average score</small></div><div class="card-b">${histChart(c)}</div></div></div>
     <div class="card"><div class="card-h"><h2 class="h3">Students to watch</h2><small>Attendance below 75% or 2+ missing assignments</small></div><div class="list">${c.students.filter(s=>s.att<75||s.subs.filter(x=>x.st==='Missing').length>=2).map(s=>`<div class="item click" data-act="student" data-id="${s.id}" style="cursor:pointer"><span class="sev" style="background:var(--bad)"></span><div class="main-t"><b>${esc(s.name)}</b><div class="meta"><span>Attendance ${s.att}%</span><span>${s.subs.filter(x=>x.st==='Missing').length} missing</span><span>Last 1:1 ${s.last?fmt(s.last):'not this month'}</span></div></div><span class="btn sm">View</span></div>`).join('')||'<div class="empty">No students at risk</div>'}</div></div>` : `<div class="card"><div class="empty">Analytics appear once ${c.code} starts.</div></div>`;
-  return `<div class="page-head"><div><button class="btn ghost sm" data-act="cback" style="padding-left:0">← All cohorts</button><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><h1>${c.code}</h1>${statusTagC(c)}</div><p>${c.prog} · ${c.size} students · ${esc(UU(c.pm).name)}</p>${c.status==='Running'?kpiFeeds([4,7,8,12],'This cohort feeds'):''}</div><button class="btn" data-act="upload">${ic('upload')}Bulk upload</button></div>
+  return `<div class="page-head"><div><button class="btn ghost sm" data-act="cback" style="padding-left:0">← All cohorts</button><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><h1>${c.code}</h1>${statusTagC(c)}</div><p>${c.prog} · ${c.size} students · ${esc(UU(c.pm).name)}</p>${c.status==='Running'?kpiFeeds([4,7,8,12],'This cohort feeds'):''}</div>${db.demo?`<button class="btn" data-act="upload">${ic('upload')}Bulk upload</button>`:canMarkAtt(c)?`<button class="btn" data-act="attmark" data-id="${esc(c.code)}">${ic('check')}Mark attendance</button>`:''}</div>
   <div class="seg">${tabs.map(([k,l])=>`<button class="${tab===k?'on':''}" data-act="ctab" data-v="${k}">${l}</button>`).join('')}</div>${body}`;
 }
 
 function trendChart(c){
   const w=560,h=220,l=40,r=16,t=12,b=30, n=c.sess.length;
-  const vals=c.sess.map((_,i)=>{const rec=c.students.map(s=>s.attRec[i]).filter(v=>v!=='E');return Math.round(rec.filter(v=>v!=='A').length/rec.length*100);});
+  const vals=c.sess.map((_,i)=>{const rec=c.students.map(s=>s.attRec[i]).filter(v=>v&&v!=='E');return rec.length?Math.round(rec.filter(v=>v!=='A').length/rec.length*100):0;});
   const X=i=>l+(n===1?0:i*(w-l-r)/(n-1)), Y=v=>t+(h-t-b)*(1-(v-40)/60);
   const d=vals.map((v,i)=>(i?'L':'M')+X(i).toFixed(1)+' '+Y(v).toFixed(1)).join('');
   return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;display:block" role="img" aria-label="Attendance per session">
@@ -1391,7 +1501,7 @@ function drawerStudent(s){
         <div class="card stat"><span class="lbl">Submitted</span><span class="val num">${s.subs.length?sub+' / '+s.subs.length:'—'}</span><span class="sub">${s.subs.filter(x=>x.st==='Late').length} late</span></div>
         <div class="card stat"><span class="lbl">Last one-to-one</span><span class="val num" style="font-size:24px">${s.last?fmt(s.last):'Pending'}</span><span class="sub">${s.last?'This month':'Due by 30 Oct'}</span></div>
       </div>
-      <div><div class="eyebrow" style="margin-bottom:10px">Attendance by session</div>${s.attRec.length?`<div class="strip">${s.attRec.map((v,i)=>`<div><span class="hcell lg" style="background:${ATT_C[v]}" title="${ATT_L[v]}">${v}</span><small>S${i+1}</small></div>`).join('')}</div>`:'<div class="demo-note">Starts with the first session.</div>'}</div>
+      <div><div class="eyebrow" style="margin-bottom:10px">Attendance by session</div>${s.attRec.some(Boolean)?`<div class="strip">${s.attRec.map((v,i)=>v?`<div><span class="hcell lg" style="background:${ATT_C[v]}" title="${ATT_L[v]}"><span aria-hidden="true">${v}</span><span class="sr-only">Session ${i+1}: ${ATT_L[v]}</span></span><small aria-hidden="true">S${i+1}</small></div>`:`<div><span class="hcell lg" style="background:var(--surface-2);color:var(--ink-3)"><span aria-hidden="true">–</span><span class="sr-only">Session ${i+1}: not marked</span></span><small aria-hidden="true">S${i+1}</small></div>`).join('')}</div>`:'<div class="demo-note">No attendance marked yet.</div>'}</div>
       <div><div class="eyebrow" style="margin-bottom:10px">Assignment scores vs cohort average</div>${asgChart}</div>
       <div><div class="eyebrow" style="margin-bottom:10px">One-to-ones</div><div class="grid" style="gap:10px">${(s.last?[[s.last,'Monthly check-in logged']]:[]).concat(s.ones).map(([d,t])=>`<div class="comment">${av(c.pm)}<div><b>${esc(UU(c.pm).name)}</b> <small>${fmt(d)}</small><p>${esc(t)}</p></div></div>`).join('')||'<div class="demo-note">None yet.</div>'}</div></div>
       <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap"><button class="btn" data-act="toast" data-t="Student report exported (preview)">Export report</button><button class="btn primary" data-act="modal" data-m="oneone" data-id="${s.id}">${ic('chat')}Log 1:1</button></div>
@@ -1583,6 +1693,7 @@ function modal(kind, id){
   if (kind==='invoice') return `<div class="scrim center" data-act="close"><div class="modal xwide" role="dialog" aria-label="Create invoice" data-stop><div class="drawer-h"><div style="flex:1"><div class="eyebrow">Standard Reverentia invoice</div><h2>Create invoice</h2></div><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div><div class="drawer-b">${invForm()}</div><div class="modal-f"><button class="btn" data-act="close">Cancel</button><button class="btn" data-act="save" data-m="invoice" data-draft="1">Save as draft</button><button class="btn" data-act="save" data-m="invoice">Create and mark as sent</button><button class="btn primary" data-act="save" data-m="invoice" data-dl="1">${ic('download')}Create and download invoice</button></div></div></div>`;
   if (kind==='member') return `<div class="scrim center" data-act="close"><div class="modal wide" role="dialog" aria-label="${id?'Edit person':'Add person'}" data-stop><div class="drawer-h"><div style="flex:1"><div class="eyebrow">People and access</div><h2>${id?'Edit '+esc(UU(id).name):'Add person'}</h2></div><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div><div class="drawer-b">${memberForm(id)}</div><div class="modal-f"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="membersave" data-id="${id||''}">${id?'Save changes':'Add person'}</button></div></div></div>`;
   if (kind==='approve'){ const r=REQUESTS.find(x=>x.email===id); if (!r) return ''; return `<div class="scrim center" data-act="close"><div class="modal wide" role="dialog" aria-label="Approve sign-up" data-stop><div class="drawer-h"><div style="flex:1"><div class="eyebrow">Sign-up request</div><h2>Approve ${esc(r.name||r.email)}</h2></div><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div><div class="drawer-b"><p class="demo-note" style="margin:0">Choose their title and access. Honorariums stay hidden unless you tick the box.</p>${memberForm(null, r)}</div><div class="modal-f"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="membersave" data-id="" data-req="${esc(r.email)}">Approve</button></div></div></div>`; }
+  if (kind==='attmark'){ const c=COHORTS.find(x=>x.code===id); if (!c||!ATT) return ''; return `<div class="scrim center" data-act="close"><div class="modal wide" role="dialog" aria-label="Attendance for ${esc(c.code)}" data-stop><div class="drawer-h"><div style="flex:1"><div class="eyebrow">${esc(c.prog)} · ${esc(c.code)}</div><h2>Mark attendance</h2></div><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div><div class="drawer-b">${attForm(id)}</div><div class="modal-f"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="save" data-m="attmark">Save attendance</button></div></div></div>`; }
   if (kind==='memberdel') return `<div class="scrim center" data-act="close"><div class="modal" role="dialog" aria-label="Remove person" data-stop><div class="drawer-h"><h2>Remove ${esc(UU(id).name)}?</h2><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div><div class="drawer-b"><p style="margin:0">They will lose all access to Optimus straight away. Their past tasks, sessions and activity stay on record.</p></div><div class="modal-f"><button class="btn" data-act="close">Cancel</button><button class="btn primary" style="background:var(--bad);border-color:var(--bad)" data-act="memberdel" data-id="${id}">Remove</button></div></div></div>`;
   if (kind==='cohortadd') return `<div class="scrim center" data-act="close"><div class="modal wide" role="dialog" aria-label="Add cohort" data-stop><div class="drawer-h"><div style="flex:1"><div class="eyebrow">Cohorts</div><h2>Add cohort</h2></div><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div><div class="drawer-b">${cohortForm()}</div><div class="modal-f"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="save" data-m="cohortadd">Add cohort</button></div></div></div>`;
   if (kind==='facform') return `<div class="scrim center" data-act="close"><div class="modal wide" role="dialog" aria-label="${id?'Edit faculty':'Add faculty'}" data-stop><div class="drawer-h"><div style="flex:1"><div class="eyebrow">Faculty directory</div><h2>${id?'Edit '+esc(FACULTY[id].name):'Add faculty'}</h2></div><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div><div class="drawer-b">${facForm(id)}</div><div class="modal-f"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="save" data-m="facform" data-id="${id||''}">${id?'Save changes':'Add to directory'}</button></div></div></div>`;
@@ -1719,6 +1830,7 @@ root.addEventListener('click', e=>{
     case 'save': { const m=el.dataset.m; let msg='Saved';
       if (m==='sched'){ const d=schedRead(), err=schedCheck(d); if (err){ schedPreview(); break; } const id=newId('S-', 320+SESSIONS.length-9); SESSIONS.push({id,date:d.date,time:d.time,prog:d.prog,cohort:d.cohort,title:d.title,mode:d.mode,venue:d.mode==='Online'?'Zoom':d.venue,zoom:d.mode==='Offline'?null:d.zoom,cal:true,fac:d.fac,pm:isMgr()?((COHORTS.find(c=>c.code===d.cohort)||{}).pm||S.user):S.user,notes:false,check:[d.fac?1:0,1,0,1,0],pay:{inv:'Not due',paid:'Not due',tds:'Not due'}}); S.sessTab='upcoming'; msg=`${d.title} scheduled · Google Calendar invite sent to ${d.inv} guests with the ${d.mode==='Offline'?'venue':'Zoom link'}`; }
       if (m==='invoice'){ S.invTried=true; const v=invRead(), err=invCheck(v); if (err){ invPreview(); break; } v.items=v.items.filter(i=>i.d||i.r); v.id=newId('IV-', 49+INVOICES.length-8); invNext[v.type]++; v.status=el.dataset.draft?'draft':'sent'; INVOICES.unshift(v); S.invTried=false; S.view='invoices'; S.invF='all'; S.drawer=['inv',v.id]; msg=`${v.no} ${v.status==='draft'?'saved as a draft':'created for '+rs(invCalc(v).total)}`; if (el.dataset.dl){ S.modal=null; render(); invPdf(v); break; } }
+      if (m==='attmark'){ const r=attSave(); if (!r) break; msg=r; }
       if (m==='cohortadd'){ const c=cohortSave(); if (!c) break; S.view='cohorts'; S.cohort=c.code; S.ctab='profile'; msg=`${c.code} added with ${c.size} student${c.size===1?'':'s'}`; }
       if (m==='facform'){ const r=facSave(el.dataset.id||null); if (!r) break; AUDIT.unshift([nowStamp(),S.user,r.isNew?'added faculty':'edited faculty',r.name]); S.drawer=['fac',r.id]; msg = r.isNew ? `${r.name} added to the faculty directory` : `${r.name}'s profile updated`; }
       if (m==='invrecv'){ const v=recvSave(); if (!v) break; AUDIT.unshift([nowStamp(),S.user,'attached faculty invoice',v.no+' · '+v.from.name]); S.drawer=['inv',v.id]; msg=`Invoice from ${v.from.name} attached. Sent to Neha and Rajiv for approval.`; }
@@ -1742,6 +1854,9 @@ root.addEventListener('click', e=>{
     case 'paytab': S.payTab=el.dataset.v; render(); break;
     case 'membersave': memberSave(el.dataset.id||null, el); break;
     case 'memberdel': memberRemove(el.dataset.id, el); break;
+    case 'attmark': attOpen(el.dataset.id); render(); break;
+    case 'attall': { const c=COHORTS.find(x=>x.code===ATT.code); c.students.forEach(st=>{ if (el.dataset.v) ATT.marks[st.id]=el.dataset.v; else delete ATT.marks[st.id]; }); render(); const b=document.querySelector(`[data-act="attall"][data-v="${el.dataset.v}"]`); if (b) b.focus(); announce(el.dataset.v?'Everyone marked present':'All marks cleared'); break; }
+    case 'attdltpl': { const c=COHORTS.find(x=>x.code===el.dataset.id); const q=v=>/[",\n]/.test(v)?'"'+String(v).replace(/"/g,'""')+'"':v; const csv='Student ID,Name,Email,Status\n'+c.students.map(st=>[st.id,st.name,st.email||'',''].map(q).join(',')).join('\n')+'\n'; const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'})); a.download=`${c.code} attendance template.csv`; document.body.appendChild(a); a.click(); a.remove(); announce('Template downloaded. Fill the Status column with P, L, A or E.'); break; }
     case 'reqdecline': reqDecline(el.dataset.id, el).then(render); break;
     case 'admintab': S.adminTab=el.dataset.v; render(); break;
     case 'toast': toast(el.dataset.t); break;

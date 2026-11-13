@@ -361,3 +361,18 @@ a.btn{text-decoration:none;color:var(--ink)}
 .skip:focus{top:12px}
 [data-act]:focus-visible,.tbl-wrap:focus-visible,h1:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 h1[tabindex="-1"]:focus{outline:none}
+/* Attendance sheet */
+.att-up{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;border:1px dashed var(--line-2);border-radius:10px;padding:10px 12px}
+.att-list{display:grid;gap:6px;max-height:46vh;overflow-y:auto;padding-right:4px}
+.att-row{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;border:1px solid var(--line);border-radius:10px;padding:8px 12px;margin:0;min-width:0}
+.att-row legend{float:left;padding:0;font-size:14px}
+.att-opts{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}
+.att-opt{position:relative;display:inline-flex}
+.att-opt input{position:absolute;opacity:0;width:1px;height:1px}
+.att-opt span{display:inline-block;border:1px solid var(--line-2);border-radius:999px;padding:4px 11px;font-size:12.5px;font-weight:600;cursor:pointer;color:var(--ink-2)}
+.att-opt input:focus-visible + span{outline:2px solid var(--accent);outline-offset:2px}
+.att-P input:checked + span{background:var(--good);border-color:var(--good);color:var(--surface)}
+.att-L input:checked + span{background:var(--warn);border-color:var(--warn);color:var(--surface)}
+.att-A input:checked + span{background:var(--bad);border-color:var(--bad);color:var(--surface)}
+.att-E input:checked + span{background:var(--ink-3);border-color:var(--ink-3);color:var(--surface)}
+.att-opt input:checked + span::before{content:"✓ "}

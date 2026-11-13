@@ -834,7 +834,7 @@ function shell(content){
   </aside>
   <div class="main">
     <header class="topbar">
-      <label class="search">${ic('search')}<input id="q" placeholder="Search tasks, sessions, faculty, students" value="${esc(S.q)}" aria-label="Search"></label>
+      <label class="search">${ic('search')}<input id="q" type="search" placeholder="Search students, cohorts, tasks, sessions, faculty" value="${esc(S.q)}" aria-label="Search everything" autocomplete="off"></label>
       <span class="spacer"></span>
       ${db.demo?'<span class="demo-pill">Preview · sample data</span>':(db.status?`<span class="demo-pill">${esc(db.status)}</span>`:'')}
       <button class="iconbtn easy-btn" data-act="easy" aria-pressed="${document.documentElement.hasAttribute('data-easy')}" title="Easy reading: larger text and stronger contrast">Aa</button><button class="iconbtn" data-act="theme" aria-label="Toggle theme">${ic('moon')}</button>
@@ -1045,6 +1045,22 @@ function payTag(v){ const m={Paid:'t-good',Deducted:'t-good',Received:'t-info',P
 // Student search: name, email, phone, company, student ID or cohort. Phone numbers match on digits alone, so +91 98100 00000 matches 9810000000.
 const stuMatch = (s, q) => { const t = q.trim().toLowerCase(); if (!t) return true; const d = t.replace(/\D/g,'');
   return t.split(/\s+/).every(w => [s.name, s.email, s.company, s.id, s.cohort, s.phone].some(v => String(v||'').toLowerCase().includes(w))) || (d.length >= 4 && String(s.phone||'').replace(/\D/g,'').includes(d)); };
+/* ---------------- search everything (top bar) ---------------- */
+function viewSearch(){
+  const q = (S.q||'').trim(), t = q.toLowerCase(), has = (...v) => t.split(/\s+/).every(w => v.some(x => String(x||'').toLowerCase().includes(w)));
+  const myCohorts = isMgr() ? COHORTS : COHORTS.filter(c=>c.pm===S.user);
+  const groups = [
+    ['Students', myCohorts.flatMap(c=>c.students||[]).filter(s=>stuMatch(s,q)), s=>`<div class="item click" data-act="student" data-id="${esc(s.id)}"><div class="main-t"><b>${esc(s.name)}</b><div class="meta">${[s.cohort, s.email, s.phone, s.company].filter(Boolean).map(esc).join(' · ')}</div></div></div>`],
+    ['Cohorts', myCohorts.filter(c=>has(c.code, c.prog, UU(c.pm).name, c.format)), c=>`<div class="item click" data-act="cohortgo" data-id="${esc(c.code)}"><div class="main-t"><b>${esc(c.code)}</b><div class="meta">${esc(c.prog)} · ${c.students.length} students · ${esc(UU(c.pm).name)}</div></div></div>`],
+    ['Tasks', visibleTasks().filter(x=>has(x.title, x.cat, UU(x.owner).name, x.id)), x=>`<div class="item click" data-act="open" data-id="${esc(x.id)}"><div class="main-t"><b>${esc(x.title)}</b><div class="meta">${esc(UU(x.owner).name)} · due ${fmt(x.due)}${x.status==='done'?' · done':''}</div></div></div>`],
+    ['Sessions', visibleSessions().filter(x=>has(x.title, x.cohort, x.prog, x.fac&&FACULTY[x.fac]?FACULTY[x.fac].name:'', x.venue)), x=>`<div class="item click" data-act="session" data-id="${esc(x.id)}"><div class="main-t"><b>${esc(x.title)}</b><div class="meta">${fmt(x.date)} ${x.date.slice(0,4)} · ${esc(x.cohort)}${x.fac&&FACULTY[x.fac]?' · '+esc(FACULTY[x.fac].name):''}</div></div></div>`],
+    ['Faculty', activeFac().filter(([,f])=>has(f.name, f.desig, f.exp, f.email, f.phone, f.city)), ([id,f])=>`<div class="item click" data-act="fac" data-id="${esc(id)}"><div class="main-t"><b>${esc(f.name)}</b><div class="meta">${[f.desig||f.exp, f.email].filter(Boolean).map(esc).join(' · ')}</div></div></div>`],
+    ['Invoices', visibleInvoices().filter(v=>has(v.no, invParty(v), v.cohort)), v=>`<div class="item click" data-act="inv" data-id="${esc(v.id)}"><div class="main-t"><b>${esc(v.no)}</b><div class="meta">${esc(invParty(v))}${v.cohort?' · '+esc(v.cohort):''}</div></div></div>`],
+  ];
+  const total = groups.reduce((a,[,l])=>a+l.length,0);
+  return `<div class="page-head"><div><h1>Search</h1><p id="q-count" aria-live="polite">${total?`${total} result${total===1?'':'s'} for “${esc(q)}”`:`Nothing found for “${esc(q)}”`}</p></div><button class="btn" data-act="qclear">Clear search</button></div>
+  ${total?groups.filter(([,l])=>l.length).map(([h,l,row])=>`<div class="card" style="margin-bottom:16px"><div class="card-h"><h2 class="h3">${h}</h2><small>${l.length}${l.length>12?', showing 12':''}</small></div><div class="list">${l.slice(0,12).map(row).join('')}</div></div>`).join(''):`<div class="card"><div class="empty">Try a name, email, phone number, company, cohort, task or invoice number.</div></div>`}`;
+}
 function viewStudents(){
   const all = visibleStudents().slice().sort((a,b)=>(a.last||'').localeCompare(b.last||''));
   const done = all.filter(s=>s.last).length;
@@ -1524,8 +1540,8 @@ function viewCohort(c){
       <dt>Programme Manager</dt><dd>${who(c.pm)}</dd><dt>Students</dt><dd class="num">${c.size}</dd><dt>Sessions held</dt><dd class="num">${c.sess.length}</dd><dt>Assignments set</dt><dd class="num">${c.asg.length}</dd></dl></div></div>
     <div class="grid" style="align-content:start"><div class="card"><div class="card-h"><h2 class="h3">Key dates</h2></div><div class="list">${c.keydates.map(([l,d])=>`<div class="item"><div class="main-t"><b>${esc(l)}</b></div><span class="num" style="color:var(--ink-2)">${fmt(d)} ${D(d).getFullYear()}</span></div>`).join('')}</div></div>
     <div class="card"><div class="card-h"><h2 class="h3">Faculty roster</h2></div><div class="list">${c.faculty.map(f=>`<div class="item"><div class="main-t"><b>${esc(FACULTY[f].name)}</b><div class="meta">${esc(FACULTY[f].exp)}</div></div></div>`).join('')}</div></div></div></div>`;
-  if (tab==='students') body = !c.students.length ? `<div class="card"><div class="empty">No students in ${esc(c.code)} yet.${canMarkAtt(c)?`<div style="margin-top:12px"><button class="btn primary" data-act="stuadd" data-id="${esc(c.code)}">${ic('plus')}Add students</button></div>`:''}</div></div>` : `<div class="card"><div class="card-h"><h2 class="h3">${c.students.length} student${c.students.length===1?'':'s'}</h2>${canMarkAtt(c)?`<button class="btn sm primary" data-act="stuadd" data-id="${esc(c.code)}">${ic('plus')}Add students</button>`:''}</div><div class="tbl-wrap"><table><thead><tr><th>Student</th><th>Attendance</th><th class="r">Submitted</th><th class="r">Avg score</th><th>Last 1:1</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>
-    ${c.students.slice().sort((a,b)=>(a.att??101)-(b.att??101)).map(s=>{const sub=s.subs.filter(x=>x.st!=='Missing').length;return `<tr class="click" data-act="student" data-id="${s.id}"><td><b style="font-weight:600">${esc(s.name)}</b><div class="mono" style="color:var(--ink-3)">${s.id}</div></td><td>${s.att==null?'<span class="demo-note">'+(c.start>TODAY_ISO?'Starts '+fmt(c.start):'Not marked yet')+'</span>':`<div style="display:flex;align-items:center;gap:8px"><div class="bar" style="width:90px"><i style="width:${s.att}%;background:${pctCol(s.att)}"></i></div><span class="num">${s.att}%</span></div>`}</td><td class="r num">${s.subs.length?`${sub} / ${s.subs.length}`:'—'}</td><td class="r num">${s.avg==null?'—':s.avg+'%'}</td><td class="num">${s.last?fmt(s.last):c.status==='Running'?'<span class="tag t-warn">Pending</span>':'—'}</td><td>${s.att!=null&&s.att<75?'<span class="tag t-bad">At risk</span>':''}</td></tr>`}).join('')}
+  if (tab==='students') body = !c.students.length ? `<div class="card"><div class="empty">No students in ${esc(c.code)} yet.${canMarkAtt(c)?`<div style="margin-top:12px"><button class="btn primary" data-act="stuadd" data-id="${esc(c.code)}">${ic('plus')}Add students</button></div>`:''}</div></div>` : `<div class="toolbar"><label class="search stu-search">${ic('search')}<span class="sr-only">Search students in ${esc(c.code)}</span><input id="co-q" type="search" placeholder="Search ${esc(c.code)} by name, email, phone or company" value="${esc(S.csq||'')}" aria-describedby="co-count" autocomplete="off"></label>${S.csq?`<button class="btn sm" data-act="coqclear">Clear</button>`:''}<span id="co-count" class="demo-note" aria-live="polite">${S.csq?(()=>{const n=c.students.filter(s=>stuMatch(s,S.csq)).length;return `${n} match${n===1?'':'es'}`})():''}</span></div><div class="card"><div class="card-h"><h2 class="h3">${c.students.length} student${c.students.length===1?'':'s'}</h2>${canMarkAtt(c)?`<button class="btn sm primary" data-act="stuadd" data-id="${esc(c.code)}">${ic('plus')}Add students</button>`:''}</div><div class="tbl-wrap"><table><thead><tr><th>Student</th><th>Attendance</th><th class="r">Submitted</th><th class="r">Avg score</th><th>Last 1:1</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>
+    ${S.csq && !c.students.some(s=>stuMatch(s,S.csq)) ? `<tr><td colspan="6" class="empty">No student in ${esc(c.code)} matches “${esc(S.csq)}”.</td></tr>` : ''}${c.students.filter(s=>stuMatch(s,S.csq||'')).sort((a,b)=>(a.att??101)-(b.att??101)).map(s=>{const sub=s.subs.filter(x=>x.st!=='Missing').length;return `<tr class="click" data-act="student" data-id="${s.id}"><td><b style="font-weight:600">${esc(s.name)}</b><div style="font-size:12px;color:var(--ink-3)"><span class="mono">${s.id}</span>${[s.email,s.phone,s.company].filter(Boolean).map(x=>' · '+esc(x)).join('')}</div></td><td>${s.att==null?'<span class="demo-note">'+(c.start>TODAY_ISO?'Starts '+fmt(c.start):'Not marked yet')+'</span>':`<div style="display:flex;align-items:center;gap:8px"><div class="bar" style="width:90px"><i style="width:${s.att}%;background:${pctCol(s.att)}"></i></div><span class="num">${s.att}%</span></div>`}</td><td class="r num">${s.subs.length?`${sub} / ${s.subs.length}`:'—'}</td><td class="r num">${s.avg==null?'—':s.avg+'%'}</td><td class="num">${s.last?fmt(s.last):c.status==='Running'?'<span class="tag t-warn">Pending</span>':'—'}</td><td>${s.att!=null&&s.att<75?'<span class="tag t-bad">At risk</span>':''}</td></tr>`}).join('')}
     </tbody></table></div></div>`;
   if (tab==='assignments') body = c.asg.length? `<div class="card"><div class="card-h"><h2 class="h3">Assignments</h2><button class="btn sm primary" data-act="toast" data-t="Assignment form opens here">${ic('plus')}New assignment</button></div><div class="tbl-wrap"><table><thead><tr><th>Assignment</th><th>Due</th><th class="r">On time</th><th class="r">Late</th><th class="r">Missing</th><th class="r">Avg score</th></tr></thead><tbody>
     ${c.asg.map((a,i)=>{const subs=c.students.map(s=>s.subs[i]);const on=subs.filter(x=>x.st==='On time').length,la=subs.filter(x=>x.st==='Late').length,mi=subs.filter(x=>x.st==='Missing').length;const sc=subs.filter(x=>x.score!=null);const av2=sc.length?(sc.reduce((a,x)=>a+x.score,0)/sc.length).toFixed(1):'—';return `<tr><td><b style="font-weight:600">${esc(a.title)}</b><div class="demo-note">Assignment ${a.n} · out of ${a.max}</div></td><td class="num">${fmt(a.due)}</td><td class="r num">${on}</td><td class="r num">${la}</td><td class="r num">${mi?`<span class="tag t-bad">${mi}</span>`:'0'}</td><td class="r num"><b>${av2}</b> / ${a.max}</td></tr>`}).join('')}
@@ -1868,7 +1884,7 @@ function modal(kind, id){
 const root = document.getElementById('root');
 function render(){
   if (!S.user){ root.innerHTML = viewLogin(); drawWeave(); return; }
-  const v = {myday:viewMyDay,overview:viewOverview,tasks:viewTasks,sessions:viewSessions,faculty:viewFaculty,students:viewStudents,cohorts:viewCohorts,kpis:viewKpis,payments:viewPayments,invoices:viewInvoices,reports:viewReports,admin:viewAdmin}[S.view] || viewOverview;
+  const v = {search:viewSearch,myday:viewMyDay,overview:viewOverview,tasks:viewTasks,sessions:viewSessions,faculty:viewFaculty,students:viewStudents,cohorts:viewCohorts,kpis:viewKpis,payments:viewPayments,invoices:viewInvoices,reports:viewReports,admin:viewAdmin}[S.view] || viewOverview;
   let html = shell(v());
   if (S.drawer){ const [k,id]=S.drawer; html += k==='task'?drawerTask(TASKS.find(t=>t.id===id)):k==='kpi'?drawerKpi(+id, S.drawer[2]):k==='fac'?drawerFaculty(id):k==='inv'?drawerInvoice(INVOICES.find(v=>v.id===id)):k==='student'?drawerStudent(COHORTS.flatMap(c=>c.students).find(s=>s.id===id)):drawerSession(SESSIONS.find(s=>s.id===id)); }
   if (S.up) html += uploadModal();
@@ -1883,7 +1899,7 @@ function render(){
   if (S.modal && S.modal[0]==='invrecv') recvSum();
   if (q){ const el=document.getElementById('q'); el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
   a11yAfter(q ? null : prevKey, prevOverlay);
-  const sqEl = document.activeElement && document.activeElement.id==='stu-q' ? document.activeElement : null;
+  const sqEl = document.activeElement && ['stu-q','co-q'].includes(document.activeElement.id) ? document.activeElement : null;
   if (sqEl) sqEl.setSelectionRange(sqEl.value.length, sqEl.value.length);
 }
 
@@ -1920,7 +1936,8 @@ function a11yAfter(prevKey, prevOverlay){
     target.focus(); return;
   }
   if (!overlay && prevOverlay){ const el = A11Y.opener && root.querySelector(A11Y.opener); A11Y.opener = null; if (el){ el.focus(); return; } }
-  if (S.view!==A11Y.view){ const first = A11Y.view===null; A11Y.view = S.view; const h = root.querySelector('main h1'); if (h && !first){ h.tabIndex = -1; h.focus(); } return; }
+  const typing = document.activeElement && ['q','stu-q','co-q'].includes(document.activeElement.id);
+  if (S.view!==A11Y.view){ const first = A11Y.view===null; A11Y.view = S.view; if (typing) return; const h = root.querySelector('main h1'); if (h && !first){ h.tabIndex = -1; h.focus(); } return; }
   if (prevKey){ const el = root.querySelector(prevKey); if (el && el!==document.activeElement) el.focus(); }
 }
 document.addEventListener('keydown', e=>{
@@ -1949,12 +1966,12 @@ root.addEventListener('click', e=>{
   switch(a){
     case 'login': S.user=el.dataset.u; S.view=UU(S.user).kind==='pm'?'myday':'overview'; S.taskScope=UU(S.user).kind==='chair'?'assigned':'mine'; try{localStorage.setItem('optimus-role',S.user)}catch(_){} render(); window.scrollTo(0,0); break;
     case 'logout': if (!db.demo){ db.signOut(); break; } S.user=null; S.drawer=null; S.modal=null; render(); break;
-    case 'go': S.view=el.dataset.v; S.drawer=null; S.modal=null; S.cohort=null; render(); window.scrollTo(0,0); break;
+    case 'go': S.view=el.dataset.v; S.q=''; S.drawer=null; S.modal=null; S.cohort=null; render(); window.scrollTo(0,0); break;
     case 'toggle': { e.stopPropagation(); const t=TASKS.find(x=>x.id===el.dataset.id); const was=t.status==='done'; t.status=was?'doing':'done'; render(); toast(was?'Marked as not done':`Done: ${t.title}`); break; }
     case 'open': S.drawer=['task',el.dataset.id]; render(); break;
     case 'session': S.drawer=['session',el.dataset.id]; render(); break;
     case 'close': if (S.modal) S.modal=null; else if (S.up) S.up=null; else S.drawer=null; render(); break;
-    case 'cohort': S.cohort=el.dataset.c; S.ctab='profile'; render(); window.scrollTo(0,0); break;
+    case 'cohort': S.csq=''; S.cohort=el.dataset.c; S.ctab='profile'; render(); window.scrollTo(0,0); break;
     case 'cback': S.cohort=null; render(); break;
     case 'ctab': S.ctab=el.dataset.v; render(); break;
     case 'student': S.drawer=['student',el.dataset.id]; render(); break;
@@ -2011,6 +2028,9 @@ root.addEventListener('click', e=>{
     case 'attmark': attOpen(el.dataset.id); render(); break;
     case 'pastsess': psOpen(); render(); break;
     case 'stuadd': stuOpen(el.dataset.id); render(); break;
+    case 'cohortgo': S.q=''; S.csq=''; S.view='cohorts'; S.cohort=el.dataset.id; S.ctab=el.dataset.v||'profile'; render(); window.scrollTo(0,0); break;
+    case 'qclear': S.q=''; S.view=S.prevView||'overview'; render(); { const x=document.getElementById('q'); if (x) x.focus(); } break;
+    case 'coqclear': S.csq=''; render(); { const x=document.getElementById('co-q'); if (x) x.focus(); } break;
     case 'stuqclear': S.sq=''; render(); { const x=document.getElementById('stu-q'); if (x) x.focus(); } break;
     case 'stuone': stuOne(); break;
     case 'sturm': { const r = STU.rows.splice(+el.dataset.n,1)[0]; stuCheck(); STU.note = `${r.name} removed from the list.`; render(); announce(STU.note); const x=document.getElementById('su-n'); if (x) x.focus(); break; }
@@ -2033,8 +2053,11 @@ root.addEventListener('change', e=>{
   if (e.target.id==='st-sel'){ const t=TASKS.find(x=>x.id===e.target.dataset.id); t.status=e.target.value; render(); toast('Status updated'); }
   if (e.target.matches('input[data-act="check"]')){ const s=SESSIONS.find(x=>x.id===e.target.dataset.id); s.check[+e.target.dataset.i]=e.target.checked?1:0; }
 });
-root.addEventListener('input', e=>{ if (e.target.id==='stu-q'){ S.sq = e.target.value; render(); return; } });
-root.addEventListener('input', e=>{ if (e.target.id==='q'){ S.q=e.target.value; if (S.view!=='tasks'){ S.view='tasks'; S.taskScope='all'; S.taskFilter='all'; } render(); } });
+root.addEventListener('input', e=>{ if (e.target.id==='stu-q'){ S.sq = e.target.value; render(); return; } if (e.target.id==='co-q'){ S.csq = e.target.value; render(); return; } });
+root.addEventListener('input', e=>{ if (e.target.id==='q'){ S.q=e.target.value;
+  if (S.q.trim()){ if (S.view!=='search'){ S.prevView=S.view; S.view='search'; S.drawer=null; S.cohort=null; } }
+  else if (S.view==='search'){ S.view=S.prevView||'overview'; }
+  render(); } });
 document.addEventListener('keydown', e=>{ if (e.key==='Escape' && (S.drawer||S.modal||S.up)){ S.drawer=null; S.modal=null; S.up=null; render(); } });
 
 /* login background: a quiet woven grid (calendar weeks) */

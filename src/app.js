@@ -1029,11 +1029,16 @@ function viewSessions(){
   let list = visibleSessions();
   const up = S.sessTab==='upcoming';
   list = list.filter(s=>up?dayDiff(s.date)>=0:dayDiff(s.date)<0).sort((a,b)=>up?a.date.localeCompare(b.date):b.date.localeCompare(a.date));
-  return `<div class="page-head"><div><h1>Sessions</h1><p>Schedule, faculty, readiness, class notes and payment status for every session.</p>${kpiFeeds([1,5,9])}</div><button class="btn primary" data-act="modal" data-m="sched">${ic('plus')}Schedule a class</button></div>
+  return `<div class="page-head"><div><h1>Sessions</h1><p>Schedule, faculty, readiness, class notes and payment status for every session.</p>${kpiFeeds([1,5,9])}</div><div class="toolbar">${markableCohorts().length?`<button class="btn" data-act="pastsess">${ic('upload')}Upload past sessions</button>`:''}<button class="btn primary" data-act="modal" data-m="sched">${ic('plus')}Schedule a class</button></div></div>
   <div class="toolbar"><div class="seg"><button class="${up?'on':''}" data-act="sesstab" data-v="upcoming">Upcoming</button><button class="${!up?'on':''}" data-act="sesstab" data-v="past">Past</button></div></div>
   <div class="card"><div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Session</th><th>Faculty</th><th>PM</th><th>${up?'Readiness':'Class notes'}</th><th>Payment</th><th>TDS</th></tr></thead><tbody>
   ${list.map(s=>{const r=s.check.filter(Boolean).length;return `<tr class="click" data-act="session" data-id="${s.id}"><td class="num" style="white-space:nowrap"><b>${fmt(s.date)}</b><div style="font-size:12px;color:var(--ink-3)">${s.time} · ${s.mode}</div></td><td><b style="font-weight:600">${esc(s.title)}</b><div style="font-size:12px;color:var(--ink-3)">${esc(s.prog)} · ${esc(s.cohort)}</div></td><td>${s.fac?esc(FACULTY[s.fac].name):'<span class="tag t-bad">Not assigned</span>'}</td><td>${who(s.pm)}</td><td>${up?`<span class="tag ${r===5?'t-good':r>=3?'t-warn':'t-bad'}">${r}/5 ready</span>`:(s.notes?'<span class="tag t-good">Added</span>':`<span class="tag t-bad">Missing</span>`)}</td><td>${payTag(s.pay.paid)}</td><td>${payTag(s.pay.tds)}</td></tr>`}).join('')||'<tr><td colspan="7" class="empty">No sessions</td></tr>'}
-  </tbody></table></div></div>`;
+  </tbody></table></div></div>${!up?pastRecorded():''}`;
+}
+function pastRecorded(){
+  const rows = visibleCohorts().flatMap(c=>c.sess.filter(x=>!SESSIONS.some(y=>y.cohort===c.code && y.date===x.date)).map(x=>({c, x, i:c.sess.indexOf(x)}))).sort((a,b)=>b.x.date.localeCompare(a.x.date));
+  if (!rows.length) return '';
+  return `<div class="card" style="margin-top:16px"><div class="card-h"><h2 class="h3">Earlier sessions recorded for attendance</h2><small>Uploaded or added while marking attendance</small></div><div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Session</th><th>Cohort</th><th class="r">Attendance marked</th></tr></thead><tbody>${rows.map(({c,x,i})=>{const marked=c.students.filter(s=>s.attRec[i]).length;return `<tr class="click" data-act="cohortatt" data-id="${esc(c.code)}"><td class="num"><b>${fmt(x.date)}</b> ${x.date.slice(0,4)}</td><td>${esc(x.title||'Session '+x.n)}</td><td>${esc(c.code)}</td><td class="r num">${marked?`${marked} of ${c.students.length}`:'<span class="tag t-warn">Not yet</span>'}</td></tr>`}).join('')}</tbody></table></div></div>`;
 }
 function payTag(v){ const m={Paid:'t-good',Deducted:'t-good',Received:'t-info',Pending:'t-warn','Not deducted':'t-warn','Not due':''}; return `<span class="tag ${m[v]||''}">${v}</span>`; }
 
@@ -1308,6 +1313,17 @@ function attRecalc(c){
     const counted = rec.filter(v=>v && v!=='E'); s.att = counted.length ? Math.round(counted.filter(v=>v!=='A').length/counted.length*100) : null; });
   c.sessions = c.sess.length;
 }
+// Adds a session (date, name) to a cohort's attendance list, keeping marks lined up by date. Returns false if that date exists.
+function addCohortSession(c, date, title){
+  if (c.sess.some(x=>x.date===date)) return false;
+  const before = c.sess.map(x=>x.date);
+  c.sess.push({n:0, date, title:title||''});
+  c.sess.sort((a,b)=>a.date.localeCompare(b.date));
+  c.students.forEach(st=>{ const m = {}; before.forEach((d,i)=>{ m[d] = st.attRec[i] || null; }); st.attRec = c.sess.map(x=>m[x.date] || null); });
+  c.sess.forEach((x,i)=>x.n=i+1);
+  attRecalc(c);
+  return true;
+}
 let ATT = null; // the open sheet: {code, idx (session index or -1 for new), marks:{studentId:code}, note}
 function attOpen(code){
   const c = COHORTS.find(x=>x.code===code); if (!c) return;
@@ -1379,12 +1395,7 @@ function attSave(){
   if (idx < 0){
     const date = ATT.date; if (!date){ err.textContent = 'Add the date of the session.'; return null; }
     if (c.sess.some(x=>x.date===date)){ err.textContent = `There is already a session on ${fmtLong(date)}. Choose it from the list.`; return null; }
-    const before = c.sess.map(x=>x.date);
-    c.sess.push({n:0, date, title:ATT.title});
-    c.sess.sort((a,b)=>a.date.localeCompare(b.date));
-    // keep each student's marks lined up with the sessions in date order
-    c.students.forEach(st=>{ const m = {}; before.forEach((d,i)=>{ m[d] = st.attRec[i] || null; }); st.attRec = c.sess.map(x=>m[x.date] || null); });
-    c.sess.forEach((x,i)=>x.n=i+1);
+    addCohortSession(c, date, ATT.title);
     idx = c.sess.findIndex(x=>x.date===date);
   }
   c.students.forEach(s=>{ if (ATT.marks[s.id]) s.attRec[idx] = ATT.marks[s.id]; });
@@ -1394,6 +1405,65 @@ function attSave(){
   ATT = null;
   return `Attendance saved for ${c.code}, session ${sess.n} on ${fmtLong(sess.date)}`;
 }
+/* ---------------- past sessions: upload names and dates only, for attendance (no invites, no payments) ---------------- */
+let PSU = null; // {code, rows:[{title, date, st:'new'|'dup'|'bad', raw}], note}
+const markableCohorts = () => visibleCohorts().filter(canMarkAtt);
+function psOpen(){ const list = markableCohorts(); if (!list.length){ toast('Add a cohort first'); return; } PSU = {code: (S.cohort && list.some(c=>c.code===S.cohort)) ? S.cohort : list[0].code, rows:[], note:''}; S.modal = ['pastsess', '']; }
+const MON = {jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,sept:9,oct:10,nov:11,dec:12};
+function psDate(v){
+  if (v instanceof Date && !isNaN(v)) return localISO(v);
+  if (typeof v === 'number' && v > 20000 && v < 80000) return localISO(new Date(Math.round((v - 25569) * 864e5) + new Date().getTimezoneOffset()*6e4));
+  const t = String(v||'').trim(); let m;
+  if ((m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/))) return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+  if ((m = t.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})$/))) { const y = m[3].length===2 ? '20'+m[3] : m[3]; return `${y}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`; } // day first, as in India
+  if ((m = t.match(/^(\d{1,2})(?:st|nd|rd|th)?[\s-]+([A-Za-z]{3,9})[\s,-]+(\d{2,4})$/))) { const mo = MON[m[2].toLowerCase()] || MON[m[2].slice(0,3).toLowerCase()]; if (mo) { const y = m[3].length===2 ? '20'+m[3] : m[3]; return `${y}-${String(mo).padStart(2,'0')}-${m[1].padStart(2,'0')}`; } }
+  return null;
+}
+const psValid = d => !!d && !isNaN(new Date(d+'T00:00:00')) && new Date(d+'T00:00:00').toISOString().slice(0,10)===d;
+function psForm(){
+  const list = markableCohorts(), c = COHORTS.find(x=>x.code===PSU.code), R = PSU.rows;
+  const nNew = R.filter(r=>r.st==='new').length;
+  return `<div class="grid psf" style="gap:14px">
+    <p class="demo-note" style="margin:0">For classes that already happened. Only the session name and date are saved, so they show in the attendance list. No invites go out, and nothing is added to payments.</p>
+    <div class="field"><label for="ps-c">Cohort</label><select id="ps-c">${list.map(x=>`<option value="${esc(x.code)}" ${x.code===PSU.code?'selected':''}>${esc(x.code)} · ${esc(x.prog)} · ${x.sess.length} session${x.sess.length===1?'':'s'} so far</option>`).join('')}</select></div>
+    <div class="att-up"><div><b>Excel or CSV file</b><span class="demo-note" style="display:block">Two columns: Session name and Date. Dates can be 12/10/2026 (day first), 12 Oct 2026, 2026-10-12 or Excel dates.</span></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><label class="btn sm" for="ps-file">${ic('upload')}Choose file</label><input id="ps-file" type="file" accept=".xlsx,.xls,.csv" class="sr-only"><button class="btn sm" type="button" data-act="pstpl">${ic('download')}Template</button></div></div>
+    <div id="ps-note" tabindex="-1" role="status" class="demo-note" style="margin:0">${esc(PSU.note)}</div>
+    ${R.length?`<div class="card" style="box-shadow:none"><div class="tbl-wrap"><table><caption class="sr-only">Sessions in the file</caption><thead><tr><th scope="col">Row</th><th scope="col">Session name</th><th scope="col">Date</th><th scope="col">Result</th></tr></thead><tbody>${R.map(r=>`<tr><td class="num">${r.row}</td><td>${esc(r.title||'—')}</td><td class="num">${r.date&&psValid(r.date)?fmtLong(r.date)+' '+r.date.slice(0,4):esc(String(r.raw||'—'))}</td><td>${r.st==='new'?'<span class="tag t-good">Will be added</span>':r.st==='dup'?'<span class="tag">Already there, skipped</span>':'<span class="tag t-bad">Date not understood, skipped</span>'}</td></tr>`).join('')}</tbody></table></div></div>`:''}
+    <span class="sc-err" id="ps-err"></span>
+  </div>`;
+}
+function psRecheck(){ const c = COHORTS.find(x=>x.code===PSU.code); const seen = new Set(c.sess.map(x=>x.date)); PSU.rows.forEach(r=>{ if (!r.date || !psValid(r.date)) r.st='bad'; else if (seen.has(r.date)) r.st='dup'; else { r.st='new'; seen.add(r.date); } }); }
+async function psParse(file){
+  PSU.note = `Reading ${file.name}…`; PSU.rows = [];
+  try {
+    const X = await import('xlsx'), wb = X.read(await file.arrayBuffer(), {type:'array', cellDates:true, raw:/\.csv$/i.test(file.name)}); // CSV dates stay as typed, so 12/10/2026 is read day first
+    const raw = X.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1, defval:'', blankrows:false, raw:true});
+    if (raw.length < 2) throw new Error('The file has no rows under the header.');
+    const head = raw[0].map(h=>String(h).trim().toLowerCase());
+    let iD = head.findIndex(h=>h.includes('date')), iT = head.findIndex(h=>/session|name|title|topic|class/.test(h) && !h.includes('date'));
+    if (iD < 0) throw new Error('No Date column found. Use the template.');
+    if (iT < 0) iT = iD === 0 ? 1 : 0;
+    raw.slice(1).forEach((r,k)=>{ const title = String(r[iT]||'').trim(), v = r[iD]; if (!title && v==='') return; PSU.rows.push({row:k+2, title, raw:v instanceof Date ? v.toDateString() : v, date: psDate(v)}); });
+    psRecheck();
+    const n = PSU.rows.filter(r=>r.st==='new').length, d = PSU.rows.filter(r=>r.st==='dup').length, b = PSU.rows.filter(r=>r.st==='bad').length;
+    PSU.note = `${file.name}: ${n} session${n===1?'':'s'} to add` + (d ? `, ${d} already there` : '') + (b ? `, ${b} with a date that could not be read` : '') + '. Check the list, then save.';
+  } catch(e) { PSU.note = 'Could not read the file. ' + (e.message||''); PSU.rows = []; }
+  render(); const n = document.getElementById('ps-note'); if (n) n.focus();
+}
+function psSave(){
+  const c = COHORTS.find(x=>x.code===PSU.code), add = PSU.rows.filter(r=>r.st==='new');
+  if (!add.length){ document.getElementById('ps-err').textContent = PSU.rows.length ? 'Nothing new to add from this file.' : 'Choose a file first.'; return null; }
+  let n = 0; add.forEach(r=>{ if (addCohortSession(c, r.date, r.title)) n++; });
+  AUDIT.unshift([nowStamp(), S.user, 'uploaded past sessions', `${c.code} · ${n} session${n===1?'':'s'}`]);
+  PSU = null;
+  return {c, n};
+}
+document.addEventListener('change', e=>{
+  if (!PSU || !e.target.closest || !e.target.closest('.psf')) return;
+  if (e.target.id==='ps-c'){ PSU.code = e.target.value; if (PSU.rows.length) psRecheck(); render(); const x=document.getElementById('ps-c'); if (x) x.focus(); }
+  if (e.target.id==='ps-file' && e.target.files[0]) psParse(e.target.files[0]);
+});
 document.addEventListener('change', e=>{
   if (!ATT || !e.target.closest || !e.target.closest('.attf')) return;
   const t = e.target, c = COHORTS.find(x=>x.code===ATT.code);
@@ -1701,6 +1771,7 @@ function modal(kind, id){
   if (kind==='member') return `<div class="scrim center" data-act="close"><div class="modal wide" role="dialog" aria-label="${id?'Edit person':'Add person'}" data-stop><div class="drawer-h"><div style="flex:1"><div class="eyebrow">People and access</div><h2>${id?'Edit '+esc(UU(id).name):'Add person'}</h2></div><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div><div class="drawer-b">${memberForm(id)}</div><div class="modal-f"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="membersave" data-id="${id||''}">${id?'Save changes':'Add person'}</button></div></div></div>`;
   if (kind==='approve'){ const r=REQUESTS.find(x=>x.email===id); if (!r) return ''; return `<div class="scrim center" data-act="close"><div class="modal wide" role="dialog" aria-label="Approve sign-up" data-stop><div class="drawer-h"><div style="flex:1"><div class="eyebrow">Sign-up request</div><h2>Approve ${esc(r.name||r.email)}</h2></div><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div><div class="drawer-b"><p class="demo-note" style="margin:0">Choose their title and access. Honorariums stay hidden unless you tick the box.</p>${memberForm(null, r)}</div><div class="modal-f"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="membersave" data-id="" data-req="${esc(r.email)}">Approve</button></div></div></div>`; }
   if (kind==='attmark'){ const c=COHORTS.find(x=>x.code===id); if (!c||!ATT) return ''; return `<div class="scrim center" data-act="close"><div class="modal wide" role="dialog" aria-label="Attendance for ${esc(c.code)}" data-stop><div class="drawer-h"><div style="flex:1"><div class="eyebrow">${esc(c.prog)} · ${esc(c.code)}</div><h2>Mark attendance</h2></div><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div><div class="drawer-b">${attForm(id)}</div><div class="modal-f"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="save" data-m="attmark">Save attendance</button></div></div></div>`; }
+  if (kind==='pastsess'){ if (!PSU) return ''; return `<div class="scrim center" data-act="close"><div class="modal wide" role="dialog" aria-label="Upload past sessions" data-stop><div class="drawer-h"><div style="flex:1"><div class="eyebrow">Sessions</div><h2>Upload past sessions</h2></div><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div><div class="drawer-b">${psForm()}</div><div class="modal-f"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="save" data-m="pastsess">Add sessions</button></div></div></div>`; }
   if (kind==='memberdel') return `<div class="scrim center" data-act="close"><div class="modal" role="dialog" aria-label="Remove person" data-stop><div class="drawer-h"><h2>Remove ${esc(UU(id).name)}?</h2><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div><div class="drawer-b"><p style="margin:0">They will lose all access to Optimus straight away. Their past tasks, sessions and activity stay on record.</p></div><div class="modal-f"><button class="btn" data-act="close">Cancel</button><button class="btn primary" style="background:var(--bad);border-color:var(--bad)" data-act="memberdel" data-id="${id}">Remove</button></div></div></div>`;
   if (kind==='cohortadd') return `<div class="scrim center" data-act="close"><div class="modal wide" role="dialog" aria-label="Add cohort" data-stop><div class="drawer-h"><div style="flex:1"><div class="eyebrow">Cohorts</div><h2>Add cohort</h2></div><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div><div class="drawer-b">${cohortForm()}</div><div class="modal-f"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="save" data-m="cohortadd">Add cohort</button></div></div></div>`;
   if (kind==='facform') return `<div class="scrim center" data-act="close"><div class="modal wide" role="dialog" aria-label="${id?'Edit faculty':'Add faculty'}" data-stop><div class="drawer-h"><div style="flex:1"><div class="eyebrow">Faculty directory</div><h2>${id?'Edit '+esc(FACULTY[id].name):'Add faculty'}</h2></div><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div><div class="drawer-b">${facForm(id)}</div><div class="modal-f"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="save" data-m="facform" data-id="${id||''}">${id?'Save changes':'Add to directory'}</button></div></div></div>`;
@@ -1837,6 +1908,7 @@ root.addEventListener('click', e=>{
     case 'save': { const m=el.dataset.m; let msg='Saved';
       if (m==='sched'){ const d=schedRead(), err=schedCheck(d); if (err){ schedPreview(); break; } const id=newId('S-', 320+SESSIONS.length-9); SESSIONS.push({id,date:d.date,time:d.time,prog:d.prog,cohort:d.cohort,title:d.title,mode:d.mode,venue:d.mode==='Online'?'Zoom':d.venue,zoom:d.mode==='Offline'?null:d.zoom,cal:true,fac:d.fac,pm:isMgr()?((COHORTS.find(c=>c.code===d.cohort)||{}).pm||S.user):S.user,notes:false,check:[d.fac?1:0,1,0,1,0],pay:{inv:'Not due',paid:'Not due',tds:'Not due'}}); S.sessTab='upcoming'; msg=`${d.title} scheduled · Google Calendar invite sent to ${d.inv} guests with the ${d.mode==='Offline'?'venue':'Zoom link'}`; }
       if (m==='invoice'){ S.invTried=true; const v=invRead(), err=invCheck(v); if (err){ invPreview(); break; } v.items=v.items.filter(i=>i.d||i.r); v.id=newId('IV-', 49+INVOICES.length-8); invNext[v.type]++; v.status=el.dataset.draft?'draft':'sent'; INVOICES.unshift(v); S.invTried=false; S.view='invoices'; S.invF='all'; S.drawer=['inv',v.id]; msg=`${v.no} ${v.status==='draft'?'saved as a draft':'created for '+rs(invCalc(v).total)}`; if (el.dataset.dl){ S.modal=null; render(); invPdf(v); break; } }
+      if (m==='pastsess'){ const r=psSave(); if (!r) break; msg=`${r.n} past session${r.n===1?'':'s'} added to ${r.c.code}. They now show when you mark attendance.`; }
       if (m==='attmark'){ const r=attSave(); if (!r) break; msg=r; }
       if (m==='cohortadd'){ const c=cohortSave(); if (!c) break; S.view='cohorts'; S.cohort=c.code; S.ctab='profile'; msg=`${c.code} added with ${c.size} student${c.size===1?'':'s'}`; }
       if (m==='facform'){ const r=facSave(el.dataset.id||null); if (!r) break; AUDIT.unshift([nowStamp(),S.user,r.isNew?'added faculty':'edited faculty',r.name]); S.drawer=['fac',r.id]; msg = r.isNew ? `${r.name} added to the faculty directory` : `${r.name}'s profile updated`; }
@@ -1862,6 +1934,9 @@ root.addEventListener('click', e=>{
     case 'membersave': memberSave(el.dataset.id||null, el); break;
     case 'memberdel': memberRemove(el.dataset.id, el); break;
     case 'attmark': attOpen(el.dataset.id); render(); break;
+    case 'pastsess': psOpen(); render(); break;
+    case 'cohortatt': S.view='cohorts'; S.cohort=el.dataset.id; S.ctab='attendance'; render(); window.scrollTo(0,0); break;
+    case 'pstpl': { const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob(['Session name,Date\nIntroduction to Family Business,12/10/2026\nSuccession Planning,26/10/2026\n'],{type:'text/csv'})); a.download='Optimus past sessions template.csv'; document.body.appendChild(a); a.click(); a.remove(); announce('Template downloaded. One row per session, with the session name and the date.'); break; }
     case 'attall': { const c=COHORTS.find(x=>x.code===ATT.code); c.students.forEach(st=>{ if (el.dataset.v) ATT.marks[st.id]=el.dataset.v; else delete ATT.marks[st.id]; }); render(); const b=document.querySelector(`[data-act="attall"][data-v="${el.dataset.v}"]`); if (b) b.focus(); announce(el.dataset.v?'Everyone marked present':'All marks cleared'); break; }
     case 'attdltpl': { const c=COHORTS.find(x=>x.code===el.dataset.id); const q=v=>/[",\n]/.test(v)?'"'+String(v).replace(/"/g,'""')+'"':v; const csv='Student ID,Name,Email,Status\n'+c.students.map(st=>[st.id,st.name,st.email||'',''].map(q).join(',')).join('\n')+'\n'; const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'})); a.download=`${c.code} attendance template.csv`; document.body.appendChild(a); a.click(); a.remove(); announce('Template downloaded. Fill the Status column with P, L, A or E.'); break; }
     case 'reqdecline': reqDecline(el.dataset.id, el).then(render); break;

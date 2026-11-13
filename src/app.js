@@ -342,7 +342,7 @@ function drawerInvoice(v){
         <div class="card stat"><span class="lbl">TDS deducted</span><span class="val num" style="font-size:22px">${rs(v.pays.reduce((a,p)=>a+p.tds,0))}</span></div>
         <div class="card stat ${s==='Overdue'?'alert':''}"><span class="lbl">Balance</span><span class="val num" style="font-size:22px">${rs(c.bal)}</span><span class="sub">${s==='Paid'?'Settled':dueText(v.due)}</span></div>
       </div>
-      ${v.att?`<div><div class="eyebrow" style="margin-bottom:6px">Invoice received from faculty</div><div class="pay-row"><span class="att-ic">${ic('file')}</span><div style="flex:1;min-width:0"><b style="word-break:break-all">${esc(v.att.name)}</b><div class="demo-note">${v.att.size<1024?'Under 1':(v.att.size/1024).toFixed(0)} KB · received ${fmt(v.att.at)}${v.status==='received'?' · waiting for approval':v.approvedBy?` · approved by ${esc(USERS[v.approvedBy].name.split(' ')[0])}`:''}</div></div>${v.att.path&&!v.att.blob?`<button class="btn sm" data-act="attopen" data-id="${v.id}">Open</button><button class="btn sm" data-act="attdl" data-id="${v.id}">${ic('download')}Download</button>`:v.att.blob?`<a class="btn sm" href="${v.att.url}" target="_blank" rel="noopener">Open</a><button class="btn sm" data-act="attdl" data-id="${v.id}">${ic('download')}Download</button>`:'<span class="demo-note">Sample file</span>'}</div>
+      ${v.att?`<div><div class="eyebrow" style="margin-bottom:6px">Invoice received from faculty</div><div class="pay-row"><span class="att-ic">${ic('file')}</span><div style="flex:1;min-width:0"><b style="word-break:break-all">${esc(v.att.name)}</b><div class="demo-note">${v.att.size<1024?'Under 1':(v.att.size/1024).toFixed(0)} KB · received ${fmt(v.att.at)}${v.status==='received'?' · waiting for approval':v.approvedBy?` · approved by ${esc(UU(v.approvedBy).name.split(' ')[0])}`:''}</div></div>${v.att.path&&!v.att.blob?`<button class="btn sm" data-act="attopen" data-id="${v.id}">Open</button><button class="btn sm" data-act="attdl" data-id="${v.id}">${ic('download')}Download</button>`:v.att.blob?`<a class="btn sm" href="${v.att.url}" target="_blank" rel="noopener">Open</a><button class="btn sm" data-act="attdl" data-id="${v.id}">${ic('download')}Download</button>`:'<span class="demo-note">Sample file</span>'}</div>
         <div class="strip" style="margin-top:10px;gap:4px">${['Received','Approved','Paid'].map((t,i)=>{const done=i===0||(i===1&&v.status!=='received')||(i===2&&s==='Paid');return `<span class="tag ${done?'t-good':''}" style="${done?'':'opacity:.7'}">${i+1}. ${t}</span>`}).join('<span style="color:var(--ink-3)">→</span>')}</div></div>`:''}
       <div><div class="eyebrow" style="margin-bottom:6px">Payments</div>${v.pays.length?v.pays.map(p=>`<div class="pay-row"><span class="tag t-good">${fmt(p.date)}</span><div style="flex:1"><b class="num">${rs(p.amt)}</b> received${p.tds?` · <span class="num">${rs(p.tds)}</span> TDS`:''}<div class="demo-note">${esc(p.ref||'No reference')}</div></div></div>`).join(''):'<div class="demo-note">No payments recorded yet.</div>'}</div>
       <div><div class="eyebrow" style="margin-bottom:8px">${v.att?'Recorded in Optimus as':'Invoice'}</div><div class="inv-wrap">${invDoc(v,true)}</div></div>`}
@@ -382,7 +382,7 @@ async function invXlsx(){
     await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
     const X = window.XLSX, list = invFiltered();
     const rows = list.map(v=>{ const c=invCalc(v), h=invHide(v), last=v.pays[v.pays.length-1], sess=v.session?SESSIONS.find(s=>s.id===v.session):null; const amt = n => h ? 'Confidential' : Math.round(n*100)/100;
-      return {'Invoice no.':v.no,'Type':v.type==='sales'?'We bill (receivable)':'Faculty bills us (payable)','Invoice date':v.date,'Due date':v.due,'Party':invParty(v),'Party GSTIN':(v.type==='sales'?v.to.gstin:v.from.gstin)||'','Programme':(COHORTS.find(x=>x.code===v.cohort)||{}).prog||'','Cohort':v.cohort||'','Session':sess?sess.title:'','Taxable value (₹)':amt(c.sub),'GST (₹)':amt(c.gst),'Invoice total (₹)':amt(c.total),'TDS expected (₹)':amt(c.tds),'Received (₹)':amt(v.pays.reduce((a,p)=>a+p.amt,0)),'TDS deducted (₹)':amt(v.pays.reduce((a,p)=>a+p.tds,0)),'Balance (₹)':amt(c.bal),'Status':invStatus(v),'Last payment date':last?last.date:'','Last payment reference':last?last.ref:'','Programme Manager':USERS[v.pm].name}; });
+      return {'Invoice no.':v.no,'Type':v.type==='sales'?'We bill (receivable)':'Faculty bills us (payable)','Invoice date':v.date,'Due date':v.due,'Party':invParty(v),'Party GSTIN':(v.type==='sales'?v.to.gstin:v.from.gstin)||'','Programme':(COHORTS.find(x=>x.code===v.cohort)||{}).prog||'','Cohort':v.cohort||'','Session':sess?sess.title:'','Taxable value (₹)':amt(c.sub),'GST (₹)':amt(c.gst),'Invoice total (₹)':amt(c.total),'TDS expected (₹)':amt(c.tds),'Received (₹)':amt(v.pays.reduce((a,p)=>a+p.amt,0)),'TDS deducted (₹)':amt(v.pays.reduce((a,p)=>a+p.tds,0)),'Balance (₹)':amt(c.bal),'Status':invStatus(v),'Last payment date':last?last.date:'','Last payment reference':last?last.ref:'','Programme Manager':UU(v.pm).name}; });
     const ws = X.utils.json_to_sheet(rows); ws['!cols'] = Object.keys(rows[0]||{a:1}).map(k=>({wch:Math.max(12,Math.min(40,k.length+4))}));
     const wb = X.utils.book_new(); X.utils.book_append_sheet(wb, ws, 'Invoices');
     const buf = X.write(wb, {bookType:'xlsx', type:'array'});
@@ -564,7 +564,7 @@ function drawerFaculty(id){
 }
 
 function facForm(id){
-  const f = id ? FACULTY[id] : {name:'',desig:'',email:'',phone:'',linkedin:'',city:'',exp:'',payroll:'Reverentia',pm:isMgr()?'ananya':S.user,senior:false,sessions:0,hours:0,basis:'hour',rate:'',bank:{holder:'',bank:'',acct:'',ifsc:''},pan:''};
+  const f = id ? FACULTY[id] : {name:'',desig:'',email:'',phone:'',linkedin:'',city:'',exp:'',payroll:'Reverentia',pm:isMgr()?(PMS[0]||S.user):S.user,senior:false,sessions:0,hours:0,basis:'hour',rate:'',bank:{holder:'',bank:'',acct:'',ifsc:''},pan:''};
   const conf = canConf(), hideBank = id && !conf;
   const v = x => esc(x==null?'':x);
   return `<div class="facf grid" style="gap:12px">
@@ -573,7 +573,7 @@ function facForm(id){
     <div class="grid g2"><div class="field"><label for="ff-e">Email *</label><input id="ff-e" type="email" value="${v(f.email)}" placeholder="name@domain.com"></div><div class="field"><label for="ff-ph">Phone</label><input id="ff-ph" value="${v(f.phone)}" placeholder="+91"></div></div>
     <div class="grid g2"><div class="field"><label for="ff-l">LinkedIn</label><input id="ff-l" value="${v(f.linkedin)}" placeholder="https://www.linkedin.com/in/…"></div><div class="field"><label for="ff-c">City</label><input id="ff-c" value="${v(f.city)}"></div></div>
     <div class="field"><label for="ff-x">Expertise</label><input id="ff-x" value="${v(f.exp)}" placeholder="e.g. Succession, governance"></div>
-    <div class="grid g3 sc-when"><div class="field"><label for="ff-p">Payroll</label><select id="ff-p"><option value="Reverentia" ${f.payroll!=='MU'?'selected':''}>Reverentia</option><option value="MU" ${f.payroll==='MU'?'selected':''}>Masters' Union (MU)</option></select></div><div class="field"><label for="ff-pm">Programme Manager</label><select id="ff-pm">${PMS.map(p=>`<option value="${p}" ${f.pm===p?'selected':''}>${esc(USERS[p].name)}</option>`).join('')}</select></div><div class="field"><label>&nbsp;</label><label style="display:flex;gap:8px;align-items:center;font-weight:500;font-size:13px;color:var(--ink)"><input type="checkbox" id="ff-sr" ${f.senior?'checked':''}> Senior faculty</label></div></div>
+    <div class="grid g3 sc-when"><div class="field"><label for="ff-p">Payroll</label><select id="ff-p"><option value="Reverentia" ${f.payroll!=='MU'?'selected':''}>Reverentia</option><option value="MU" ${f.payroll==='MU'?'selected':''}>Masters' Union (MU)</option></select></div><div class="field"><label for="ff-pm">Programme Manager</label><select id="ff-pm">${PMS.map(p=>`<option value="${p}" ${f.pm===p?'selected':''}>${esc(UU(p).name)}</option>`).join('')}</select></div><div class="field"><label>&nbsp;</label><label style="display:flex;gap:8px;align-items:center;font-weight:500;font-size:13px;color:var(--ink)"><input type="checkbox" id="ff-sr" ${f.senior?'checked':''}> Senior faculty</label></div></div>
     <div class="iv-sec">Sessions, hours and honorarium</div>
     <div class="grid g2"><div class="field"><label for="ff-s">Sessions taken</label><input id="ff-s" type="number" min="0" step="1" value="${+f.sessions||0}"></div><div class="field"><label for="ff-h">Hours taken</label><input id="ff-h" type="number" min="0" step="0.5" value="${+f.hours||0}"></div></div>
     ${conf?`<div class="grid g2"><div class="field"><label for="ff-b">Honorarium basis</label><select id="ff-b"><option value="hour" ${f.basis==='hour'?'selected':''}>Per hour</option><option value="session" ${f.basis==='session'?'selected':''}>Per session</option></select></div><div class="field"><label for="ff-r">Rate (₹)</label><input id="ff-r" type="number" min="0" step="500" value="${v(f.rate)}"></div></div><div class="iv-ro" id="ff-calc"></div>`:`<div class="iv-ro">${ic('lock')} Honorarium rates are set by Rajiv or Neha. Totals show as XXXX for everyone else.</div>`}
@@ -695,8 +695,8 @@ const BRIDGE = {
     STUDENTS = COHORTS.filter(c=>c.status==='Running').flatMap(c=>c.students||[]);
   },
   login(key){
-    S.user = key; S.view = USERS[key].kind==='pm' ? 'myday' : 'overview';
-    S.taskScope = USERS[key].kind==='chair' ? 'assigned' : 'mine';
+    S.user = key; S.view = UU(key).kind==='pm' ? 'myday' : 'overview';
+    S.taskScope = UU(key).kind==='chair' ? 'assigned' : 'mine';
   }
 };
 
@@ -704,8 +704,10 @@ const BRIDGE = {
 const S = {user:null, view:null, taskFilter:'open', taskScope:'mine', kpiMonth:'Oct', payTab:'status', adminTab:'templates', sessTab:'upcoming', drawer:null, modal:null, toast:null, notif:false, q:'', cohort:null, ctab:'profile', up:null, kpiQ:'Q3', kpiPm:'team', invF:'all', invT:'all', invTried:false, facPay:'all'};
 try{ const r = localStorage.getItem('optimus-role'); if(r && USERS[r]) {} }catch(e){}
 
-const isMgr = () => ['chair','head','owner','lead'].includes(USERS[S.user].kind);
-const canConf = () => ['chair','head'].includes(USERS[S.user].kind);
+// Everyone whose work is tracked: the whole team except the chairperson.
+const trackedPeople = () => db.demo ? ['neha','madhav','ananya','karan','ishita'] : Object.keys(USERS).filter(k=>UU(k).kind!=='chair');
+const isMgr = () => ['chair','head','owner','lead'].includes(UU(S.user).kind);
+const canConf = () => ['chair','head'].includes(UU(S.user).kind);
 const isOverdue = t => t.status!=='done' && dayDiff(t.due) < 0;
 const visibleTasks = () => isMgr() ? TASKS : TASKS.filter(t=>t.owner===S.user);
 const visibleSessions = () => isMgr() ? SESSIONS : SESSIONS.filter(s=>s.pm===S.user);
@@ -756,7 +758,7 @@ function dueText(s){ const d = dayDiff(s); if (d===0) return 'Due today'; if (d=
 
 /* ---------------- nav ---------------- */
 function navFor(){
-  const k = USERS[S.user].kind;
+  const k = UU(S.user).kind;
   const overdue = visibleTasks().filter(isOverdue).length;
   const items = [];
   if (k==='pm') items.push(['myday','My Day','sun']);
@@ -796,7 +798,7 @@ function viewLogin(){
     <button class="gbtn" data-act="login" data-u="rajiv"><svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>Continue with Google</button>
     <div class="divider">Demo: view as</div>
     <div style="display:flex;flex-direction:column;gap:8px">
-      ${order.map(id=>`<button class="persona" data-act="login" data-u="${id}">${av(id,true)}<span><b>${esc(USERS[id].name)}</b><small>${esc(USERS[id].role)}</small></span><span class="tag plain ${USERS[id].kind==='pm'?'t-accent':''}">${USERS[id].kind==='pm'?'Own work only':USERS[id].kind==='chair'||USERS[id].kind==='head'?'Full access':'Team view'}</span></button>`).join('')}
+      ${order.map(id=>`<button class="persona" data-act="login" data-u="${id}">${av(id,true)}<span><b>${esc(UU(id).name)}</b><small>${esc(UU(id).role)}</small></span><span class="tag plain ${UU(id).kind==='pm'?'t-accent':''}">${UU(id).kind==='pm'?'Own work only':UU(id).kind==='chair'||UU(id).kind==='head'?'Full access':'Team view'}</span></button>`).join('')}
     </div>
     <p class="demo-note">This is a design preview with sample data. Names, sessions and figures are illustrative.</p>
   </div></section></div>`;
@@ -838,10 +840,10 @@ function shell(content){
 function notifications(){
   const mine = visibleTasks().filter(t=>t.owner===S.user || isMgr());
   const out = [];
-  mine.filter(isOverdue).slice(0,3).forEach(t=>out.push(['bad',`${esc(t.title)}`,`${esc(USERS[t.owner].name)} · overdue since ${fmt(t.due)}`]));
+  mine.filter(isOverdue).slice(0,3).forEach(t=>out.push(['bad',`${esc(t.title)}`,`${esc(UU(t.owner).name)} · overdue since ${fmt(t.due)}`]));
   mine.filter(t=>t.status!=='done' && dayDiff(t.due)>=0 && dayDiff(t.due)<=2).slice(0,2).forEach(t=>out.push(['warn',esc(t.title),dueText(t.due)]));
-  if (USERS[S.user].kind==='pm' && kstate('Q3',S.user)==='Ready for review') out.unshift(['info','Your Q3 KPI scorecard is ready. Review and sign it by 30 Oct.','KPIs · today']);
-  if (USERS[S.user].kind==='chair') out.unshift(['info','Ananya Sharma signed her Q3 KPI scorecard. Approve and lock it by 30 Oct.','KPIs · today']);
+  if (UU(S.user).kind==='pm' && kstate('Q3',S.user)==='Ready for review') out.unshift(['info','Your Q3 KPI scorecard is ready. Review and sign it by 30 Oct.','KPIs · today']);
+  if (UU(S.user).kind==='chair') out.unshift(['info','Ananya Sharma signed her Q3 KPI scorecard. Approve and lock it by 30 Oct.','KPIs · today']);
   return out;
 }
 
@@ -853,7 +855,7 @@ function taskRow(t, opts={}){
     <button class="chk ${done?'on':''}" data-act="toggle" data-id="${t.id}" aria-label="Mark ${done?'not done':'done'}">${ic('tick')}</button>
     <div class="main-t" data-act="open" data-id="${t.id}" style="cursor:pointer">
       <b>${esc(t.title)}</b>
-      <div class="meta"><span>${dueText(t.due)}</span><span>${esc(t.freq)}</span><span>${esc(t.cat)}</span>${taskKpi(t)?`<span>KPI ${taskKpi(t)} · ${KPI_DEF[taskKpi(t)-1].w}%</span>`:''}${t.comments.length?`<span>${t.comments.length} comment${t.comments.length>1?'s':''}</span>`:''}${opts.showOwner?`<span>${esc(USERS[t.owner].name)}</span>`:''}</div>
+      <div class="meta"><span>${dueText(t.due)}</span><span>${esc(t.freq)}</span><span>${esc(t.cat)}</span>${taskKpi(t)?`<span>KPI ${taskKpi(t)} · ${KPI_DEF[taskKpi(t)-1].w}%</span>`:''}${t.comments.length?`<span>${t.comments.length} comment${t.comments.length>1?'s':''}</span>`:''}${opts.showOwner?`<span>${esc(UU(t.owner).name)}</span>`:''}</div>
     </div>
     ${statusTag(t)}
   </div>`;
@@ -950,15 +952,15 @@ function compliance(id){
 }
 
 function viewOverview(){
-  const k = USERS[S.user].kind;
+  const k = UU(S.user).kind;
   const all = TASKS, open = all.filter(t=>t.status!=='done'), od = all.filter(isOverdue);
   const week = open.filter(t=>dayDiff(t.due)>=0 && dayDiff(t.due)<=7);
-  const mine = k==='chair' ? all.filter(t=>t.by==='rajiv') : k==='head' ? all.filter(t=>t.by==='neha') : all.filter(t=>t.by===S.user);
-  const people = ['neha','madhav','ananya','karan','ishita'];
+  const mine = all.filter(t=>t.by===S.user);
+  const people = trackedPeople();
   const missingNotes = SESSIONS.filter(s=>dayDiff(s.date)<-2 && !s.notes);
   const pending11 = STUDENTS.filter(s=>!s.last).length;
   const upcoming = SESSIONS.filter(s=>dayDiff(s.date)>=0).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,4);
-  const comp = Math.round(people.reduce((a,p)=>a+compliance(p).pct,0)/people.length);
+  const comp = people.length ? Math.round(people.reduce((a,p)=>a+compliance(p).pct,0)/people.length) : 0;
   return `
   <div class="page-head"><div><div class="eyebrow">${fmtLong(TODAY_ISO)} · Week ${isoWeek(TODAY)}</div><h1>${k==='chair'?'Good morning, Rajiv':'Team overview'}</h1><p>Live status across Reverentia. Updated as people mark their work.</p></div>
   <div class="toolbar"><button class="btn" data-act="go" data-v="reports">${ic('file')}Weekly report</button><button class="btn primary" data-act="modal" data-m="task">${ic('plus')}Assign a task</button></div></div>
@@ -971,8 +973,8 @@ function viewOverview(){
   <div class="grid g21">
     <div class="card"><div class="card-h"><h3>Needs attention</h3><small>Overdue and missing updates, oldest first</small></div>
       <div class="list">
-        ${od.sort((a,b)=>a.due.localeCompare(b.due)).map(t=>`<div class="item click" data-act="open" data-id="${t.id}" style="cursor:pointer"><span class="sev" style="background:var(--bad)"></span>${av(t.owner)}<div class="main-t"><b>${esc(t.title)}</b><div class="meta"><span>${esc(USERS[t.owner].name)}</span><span>Assigned by ${esc(USERS[t.by].name.split(' ')[0])}</span>${t.comments.length?`<span>“${esc(t.comments[t.comments.length-1].t.slice(0,48))}${t.comments[t.comments.length-1].t.length>48?'…':''}”</span>`:''}</div></div>${statusTag(t)}</div>`).join('')}
-        ${missingNotes.map(s=>`<div class="item"><span class="sev" style="background:var(--warn)"></span>${av(s.pm)}<div class="main-t"><b>Class notes missing: ${esc(s.title)}</b><div class="meta"><span>${esc(USERS[s.pm].name)}</span><span>Session on ${fmt(s.date)}</span></div></div><span class="tag t-warn">Missing update</span></div>`).join('')}
+        ${od.sort((a,b)=>a.due.localeCompare(b.due)).map(t=>`<div class="item click" data-act="open" data-id="${t.id}" style="cursor:pointer"><span class="sev" style="background:var(--bad)"></span>${av(t.owner)}<div class="main-t"><b>${esc(t.title)}</b><div class="meta"><span>${esc(UU(t.owner).name)}</span><span>Assigned by ${esc(UU(t.by).name.split(' ')[0])}</span>${t.comments.length?`<span>“${esc(t.comments[t.comments.length-1].t.slice(0,48))}${t.comments[t.comments.length-1].t.length>48?'…':''}”</span>`:''}</div></div>${statusTag(t)}</div>`).join('')}
+        ${missingNotes.map(s=>`<div class="item"><span class="sev" style="background:var(--warn)"></span>${av(s.pm)}<div class="main-t"><b>Class notes missing: ${esc(s.title)}</b><div class="meta"><span>${esc(UU(s.pm).name)}</span><span>Session on ${fmt(s.date)}</span></div></div><span class="tag t-warn">Missing update</span></div>`).join('')}
         <div class="item"><span class="sev" style="background:var(--warn)"></span><span class="av" style="background:var(--surface-2);color:var(--ink-2)">${pending11}</span><div class="main-t"><b>${pending11} learners have no 1:1 yet this quarter</b><div class="meta"><span>KPI 4 · due by 31 Dec</span></div></div><button class="btn sm" data-act="go" data-v="students">View</button></div>
       </div>
     </div>
@@ -1001,12 +1003,12 @@ function viewTasks(){
   if (f==='open') list = list.filter(t=>t.status!=='done');
   if (f==='overdue') list = list.filter(isOverdue);
   if (f==='done') list = list.filter(t=>t.status==='done');
-  if (S.q) list = list.filter(t=>(t.title+t.cat+USERS[t.owner].name).toLowerCase().includes(S.q.toLowerCase()));
+  if (S.q) list = list.filter(t=>(t.title+t.cat+UU(t.owner).name).toLowerCase().includes(S.q.toLowerCase()));
   list = list.slice().sort((a,b)=>a.due.localeCompare(b.due));
   const scope = isMgr()?`<div class="seg">${[['mine','Mine'],['assigned','Assigned by me'],['all','Everyone']].map(([k,l])=>`<button class="${S.taskScope===k?'on':''}" data-act="scope" data-v="${k}">${l}</button>`).join('')}</div>`:'';
   return `<div class="page-head"><div><h1>Tasks</h1><p>${isMgr()?'Every task in Reverentia, with its owner, deadline and latest update.':'Everything you own. Tick it off when it is done.'}</p></div><button class="btn primary" data-act="modal" data-m="task">${ic('plus')}New task</button></div>
   <div class="toolbar">${scope}<div class="seg">${[['open','Open'],['overdue','Overdue'],['done','Done'],['all','All']].map(([k,l])=>`<button class="${f===k?'on':''}" data-act="tfilter" data-v="${k}">${l}</button>`).join('')}</div></div>
-  <div class="card">${isMgr()?`<div class="tbl-wrap"><table><thead><tr><th></th><th>Task</th><th>Owner</th><th>Frequency</th><th>Due</th><th>Status</th></tr></thead><tbody>${list.map(t=>`<tr class="click" data-act="open" data-id="${t.id}"><td style="width:40px"><button class="chk ${t.status==='done'?'on':''}" data-act="toggle" data-id="${t.id}" aria-label="Toggle done">${ic('tick')}</button></td><td><b style="font-weight:600">${esc(t.title)}</b><div class="meta" style="font-size:12px;color:var(--ink-3)"><span class="mono">${t.id}</span> · ${esc(t.cat)} · by ${esc(USERS[t.by].name.split(' ')[0])}${taskKpi(t)?` · KPI ${taskKpi(t)}`:''}</div></td><td>${who(t.owner)}</td><td>${esc(t.freq)}</td><td class="num">${fmt(t.due)}</td><td>${statusTag(t)}</td></tr>`).join('')||'<tr><td colspan="6" class="empty">No tasks match</td></tr>'}</tbody></table></div>`:`<div class="list">${list.map(t=>taskRow(t)).join('')||'<div class="empty">No tasks match</div>'}</div>`}</div>`;
+  <div class="card">${isMgr()?`<div class="tbl-wrap"><table><thead><tr><th></th><th>Task</th><th>Owner</th><th>Frequency</th><th>Due</th><th>Status</th></tr></thead><tbody>${list.map(t=>`<tr class="click" data-act="open" data-id="${t.id}"><td style="width:40px"><button class="chk ${t.status==='done'?'on':''}" data-act="toggle" data-id="${t.id}" aria-label="Toggle done">${ic('tick')}</button></td><td><b style="font-weight:600">${esc(t.title)}</b><div class="meta" style="font-size:12px;color:var(--ink-3)"><span class="mono">${t.id}</span> · ${esc(t.cat)} · by ${esc(UU(t.by).name.split(' ')[0])}${taskKpi(t)?` · KPI ${taskKpi(t)}`:''}</div></td><td>${who(t.owner)}</td><td>${esc(t.freq)}</td><td class="num">${fmt(t.due)}</td><td>${statusTag(t)}</td></tr>`).join('')||'<tr><td colspan="6" class="empty">No tasks match</td></tr>'}</tbody></table></div>`:`<div class="list">${list.map(t=>taskRow(t)).join('')||'<div class="empty">No tasks match</div>'}</div>`}</div>`;
 }
 
 function viewSessions(){
@@ -1039,17 +1041,17 @@ function viewKpis(){
   const q = S.kpiQ, mgr = isMgr();
   const who2 = mgr ? S.kpiPm : S.user;
   const qSeg = `<div class="seg"><button class="${q==='Q3'?'on':''}" data-act="kq" data-v="Q3">Q3 · Jul–Sep (final)</button><button class="${q==='Q4'?'on':''}" data-act="kq" data-v="Q4">Q4 · Oct–Dec (to date)</button></div>`;
-  const pmSeg = mgr ? `<div class="seg"><button class="${who2==='team'?'on':''}" data-act="kpm" data-v="team">Team</button>${PMS.map(p=>`<button class="${who2===p?'on':''}" data-act="kpm" data-v="${p}">${esc(USERS[p].name.split(' ')[0])}</button>`).join('')}</div>` : '';
+  const pmSeg = mgr ? `<div class="seg"><button class="${who2==='team'?'on':''}" data-act="kpm" data-v="team">Team</button>${PMS.map(p=>`<button class="${who2===p?'on':''}" data-act="kpm" data-v="${p}">${esc(UU(p).name.split(' ')[0])}</button>`).join('')}</div>` : '';
   const head = `<div class="page-head"><div><div class="eyebrow">Rev 6 framework · REV-PM-JD-COC-KPI-2025</div><h1>${mgr?'KPI scorecards':'My KPI scorecard'}</h1><p>18 KPIs in 3 pillars. Each KPI score is its compliance % (0 to 100). Weighted score = Σ (KPI score ÷ 100 × weight).</p></div>${qSeg}</div>${pmSeg?`<div class="toolbar">${pmSeg}</div>`:''}`;
   if (who2==='team') return head + teamKpis(q);
   return head + pmScorecard(who2, q);
 }
 function teamKpis(q){
   const cards = PMS.map(p=>{ const sc=scorecard(p,q), prev=q==='Q4'?scorecard(p,'Q3').total:null; return `<button class="card kpi-pm" data-act="kpm" data-v="${p}">
-    <div style="display:flex;gap:14px;align-items:center">${scoreRing(sc.total,84)}<div style="min-width:0"><div class="who">${av(p)}<b>${esc(USERS[p].name)}</b></div><div style="margin-top:6px"><span class="tag ${sc.band.cls}">${sc.band.name}</span></div><div class="demo-note" style="margin-top:4px">${q==='Q4'?'Projected payout':'Payout'} ${sc.band.pay}% of variable pay${prev!=null?` · Q3 ${prev.toFixed(1)}`:''}</div></div></div>
+    <div style="display:flex;gap:14px;align-items:center">${scoreRing(sc.total,84)}<div style="min-width:0"><div class="who">${av(p)}<b>${esc(UU(p).name)}</b></div><div style="margin-top:6px"><span class="tag ${sc.band.cls}">${sc.band.name}</span></div><div class="demo-note" style="margin-top:4px">${q==='Q4'?'Projected payout':'Payout'} ${sc.band.pay}% of variable pay${prev!=null?` · Q3 ${prev.toFixed(1)}`:''}</div></div></div>
     <div class="pill-bars">${[1,2,3].map(i=>{const pp=sc['p'+i];return `<div><span>Pillar ${i}</span><div class="bar"><i style="width:${pp.pts/pp.max*100}%;background:${scoreCol(pp.pts/pp.max*100)}"></i></div><b class="num">${pp.pts.toFixed(1)} / ${pp.max}</b></div>`}).join('')}</div>
     <div class="demo-note">Status: <b style="color:var(--ink)">${kstate(q,p)}</b></div></button>`; }).join('');
-  const matrix = `<div class="card"><div class="card-h"><h3>KPI matrix</h3><small>KPI score per PM · click a cell for the formula and evidence</small></div><div class="tbl-wrap"><table class="kmatrix"><thead><tr><th>KPI</th><th class="r">Weight</th>${PMS.map(p=>`<th class="c">${esc(USERS[p].name.split(' ')[0])}</th>`).join('')}</tr></thead><tbody>
+  const matrix = `<div class="card"><div class="card-h"><h3>KPI matrix</h3><small>KPI score per PM · click a cell for the formula and evidence</small></div><div class="tbl-wrap"><table class="kmatrix"><thead><tr><th>KPI</th><th class="r">Weight</th>${PMS.map(p=>`<th class="c">${esc(UU(p).name.split(' ')[0])}</th>`).join('')}</tr></thead><tbody>
     ${[1,2,3].map(pi=>`<tr class="pill-row"><td colspan="${2+PMS.length}">${PILLARS[pi]}</td></tr>`+KPI_DEF.filter(d=>d.p===pi).map(d=>`<tr><td><span class="kn">${d.n}</span>${esc(d.area)}</td><td class="r num">${d.w}%</td>${PMS.map(p=>{const s=kpiScore(d.n,kqv(q,p,d.n-1));return `<td class="c"><button class="kcell" data-act="kpi" data-n="${d.n}" data-p="${p}" style="background:color-mix(in srgb, ${scoreCol(s)} ${s<60?28:18}%, transparent);color:${scoreCol(s)}">${Math.round(s)}</button></td>`}).join('')}</tr>`).join('')).join('')}
     <tr class="tot"><td>Weighted score</td><td class="r num">100%</td>${PMS.map(p=>{const sc=scorecard(p,q);return `<td class="c num"><b style="color:${scoreCol(sc.total)}">${sc.total.toFixed(1)}</b></td>`}).join('')}</tr>
   </tbody></table></div></div>`;
@@ -1057,17 +1059,17 @@ function teamKpis(q){
 }
 function pmScorecard(p,q){
   const sc = scorecard(p,q), gaps = sc.rows.slice().sort((a,b)=>(b.w-b.pts)-(a.w-a.pts)).slice(0,3);
-  const st = kstate(q,p), k = USERS[S.user].kind;
+  const st = kstate(q,p), k = UU(S.user).kind;
   let action = '';
   if (q==='Q3' && st==='Ready for review' && k==='pm' && p===S.user) action = `<button class="btn primary" data-act="ksign" data-p="${p}">Sign scorecard</button><button class="btn" data-act="toast" data-t="Data query raised. It is resolved by tracker records only.">Raise data query</button>`;
-  if (q==='Q3' && st==='Ready for review' && k!=='pm') action = `<span class="demo-note">Waiting for ${esc(USERS[p].name.split(' ')[0])} to sign</span>`;
+  if (q==='Q3' && st==='Ready for review' && k!=='pm') action = `<span class="demo-note">Waiting for ${esc(UU(p).name.split(' ')[0])} to sign</span>`;
   if (q==='Q3' && st==='Signed by PM' && k==='chair') action = `<button class="btn primary" data-act="klock" data-p="${p}">Approve and lock</button>`;
   if (q==='Q3' && st==='Signed by PM' && k==='pm') action = `<span class="demo-note">Waiting for Rajiv to approve and lock</span>`;
   return `<div class="grid g21">
     <div class="card"><div class="card-b" style="display:flex;gap:20px;align-items:center;flex-wrap:wrap">
       ${scoreRing(sc.total,120)}
       <div style="flex:1;min-width:220px;display:flex;flex-direction:column;gap:8px">
-        <div class="who">${av(p,true)}<div><b style="font-size:16px">${esc(USERS[p].name)}</b><div class="demo-note">${q==='Q3'?'Q3 2026 · Jul to Sep · scores lock by 30 Oct':'Q4 2026 · Oct to Dec · to date, will change'}</div></div></div>
+        <div class="who">${av(p,true)}<div><b style="font-size:16px">${esc(UU(p).name)}</b><div class="demo-note">${q==='Q3'?'Q3 2026 · Jul to Sep · scores lock by 30 Oct':'Q4 2026 · Oct to Dec · to date, will change'}</div></div></div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><span class="tag ${sc.band.cls}">${sc.band.name}</span><span class="demo-note">${q==='Q4'?'Projected payout':'Payout'}: <b style="color:var(--ink)">${sc.band.pay}% of variable pay</b></span><span class="tag plain">${st}</span></div>
         <div class="pill-bars">${[1,2,3].map(i=>{const pp=sc['p'+i];return `<div><span>Pillar ${i}</span><div class="bar"><i style="width:${pp.pts/pp.max*100}%;background:${scoreCol(pp.pts/pp.max*100)}"></i></div><b class="num">${pp.pts.toFixed(1)} / ${pp.max}</b></div>`}).join('')}</div>
         ${action?`<div class="toolbar">${action}</div>`:''}
@@ -1076,7 +1078,7 @@ function pmScorecard(p,q){
   </div>
   ${monthlyCard(p)}
   <div class="card"><div class="tbl-wrap"><table><thead><tr><th>KPI area</th><th>Evidence this quarter</th><th>KPI score</th><th class="r">Weight</th><th class="r">Points</th></tr></thead><tbody>
-  ${[1,2,3].map(pi=>`<tr class="pill-row"><td colspan="5">${PILLARS[pi]} <span style="float:right" class="num">${sc['p'+pi].pts.toFixed(1)} / ${sc['p'+pi].max}</span></td></tr>`+sc.rows.filter(r=>r.p===pi).map(r=>`<tr class="click" data-act="kpi" data-n="${r.n}" data-p="${p}"><td><span class="kn">${r.n}</span><b style="font-weight:600">${esc(r.area)}</b><div class="demo-note" style="margin-left:30px">${esc(r.src)}</div></td><td style="font-size:13px">${r.p===3&&USERS[S.user].kind==='pm'?'Annual 360° round, held by RG':esc(r.ev)}</td><td><div style="display:flex;align-items:center;gap:8px;min-width:150px"><div class="bar" style="flex:1"><i style="width:${r.s}%;background:${scoreCol(r.s)}"></i></div><b class="num" style="width:28px;text-align:right">${Math.round(r.s)}</b></div></td><td class="r num">${r.w}%</td><td class="r num"><b>${r.pts.toFixed(2)}</b></td></tr>`).join('')).join('')}
+  ${[1,2,3].map(pi=>`<tr class="pill-row"><td colspan="5">${PILLARS[pi]} <span style="float:right" class="num">${sc['p'+pi].pts.toFixed(1)} / ${sc['p'+pi].max}</span></td></tr>`+sc.rows.filter(r=>r.p===pi).map(r=>`<tr class="click" data-act="kpi" data-n="${r.n}" data-p="${p}"><td><span class="kn">${r.n}</span><b style="font-weight:600">${esc(r.area)}</b><div class="demo-note" style="margin-left:30px">${esc(r.src)}</div></td><td style="font-size:13px">${r.p===3&&UU(S.user).kind==='pm'?'Annual 360° round, held by RG':esc(r.ev)}</td><td><div style="display:flex;align-items:center;gap:8px;min-width:150px"><div class="bar" style="flex:1"><i style="width:${r.s}%;background:${scoreCol(r.s)}"></i></div><b class="num" style="width:28px;text-align:right">${Math.round(r.s)}</b></div></td><td class="r num">${r.w}%</td><td class="r num"><b>${r.pts.toFixed(2)}</b></td></tr>`).join('')).join('')}
   <tr class="tot"><td colspan="3">Final weighted score</td><td class="r num">100%</td><td class="r num"><b style="color:${scoreCol(sc.total)}">${sc.total.toFixed(2)}</b></td></tr>
   </tbody></table></div></div>
   ${payMatrix(sc.total)}`;
@@ -1101,8 +1103,8 @@ function monthChart(pms){
   const grid=[50,60,70,80,90,100].map(v=>`<line x1="${l}" x2="${W-rt}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)" ${v===KTARGET?'stroke-dasharray="5 4" stroke="var(--good)"':v===KWARN?'stroke-dasharray="2 4" stroke="var(--warn)"':''}/><text x="${l-8}" y="${y(v)+4}" text-anchor="end" font-size="11" fill="var(--ink-3)">${v}</text>`).join('');
   const lab=`<text x="${W-rt+14}" y="${y(KTARGET)+4}" font-size="12" fill="var(--good)">Target ${KTARGET}</text><text x="${W-rt+14}" y="${y(KWARN)+4}" font-size="12" fill="var(--warn)">Early warning ${KWARN}</text>`;
   const xs=MONTHS.map((m,i)=>`<text x="${x(i)}" y="${H-8}" text-anchor="middle" font-size="12" fill="var(--ink-2)">${m}${i===3?' (to date)':''}</text>`).join('');
-  const lines=pms.map(p=>{const v=MONTHS.map((m,i)=>monthTotal(p,i));const c=USERS[p].color;return `<polyline fill="none" stroke="${c}" stroke-width="2.5" points="${v.map((s,i)=>`${x(i)},${y(yv(s))}`).join(' ')}"/>${v.map((s,i)=>`<circle cx="${x(i)}" cy="${y(yv(s))}" r="4" fill="${c}"><title>${esc(USERS[p].name)} · ${MONTHS[i]} · ${s.toFixed(1)}</title></circle>`).join('')}${pms.length===1?v.map((s,i)=>`<text x="${x(i)}" y="${y(yv(s))-10}" text-anchor="middle" font-size="12" font-weight="600" fill="var(--ink)">${s.toFixed(1)}</text>`).join(''):''}`}).join('');
-  const key = pms.length>1?`<div class="mkey">${pms.map(p=>`<span><i style="background:${USERS[p].color}"></i>${esc(USERS[p].name.split(' ')[0])}</span>`).join('')}</div>`:'';
+  const lines=pms.map(p=>{const v=MONTHS.map((m,i)=>monthTotal(p,i));const c=UU(p).color;return `<polyline fill="none" stroke="${c}" stroke-width="2.5" points="${v.map((s,i)=>`${x(i)},${y(yv(s))}`).join(' ')}"/>${v.map((s,i)=>`<circle cx="${x(i)}" cy="${y(yv(s))}" r="4" fill="${c}"><title>${esc(UU(p).name)} · ${MONTHS[i]} · ${s.toFixed(1)}</title></circle>`).join('')}${pms.length===1?v.map((s,i)=>`<text x="${x(i)}" y="${y(yv(s))-10}" text-anchor="middle" font-size="12" font-weight="600" fill="var(--ink)">${s.toFixed(1)}</text>`).join(''):''}`}).join('');
+  const key = pms.length>1?`<div class="mkey">${pms.map(p=>`<span><i style="background:${UU(p).color}"></i>${esc(UU(p).name.split(' ')[0])}</span>`).join('')}</div>`:'';
   return `<svg viewBox="0 0 ${W} ${H}" class="mchart" role="img" aria-label="Weighted KPI score by month against the target">${grid}${lab}${lines}${xs}</svg>${key}`;
 }
 function monthlyCard(p){
@@ -1110,12 +1112,12 @@ function monthlyCard(p){
   const head = `<div class="card-h"><h3>Monthly progress, target vs actual</h3><small>Reviewed every month · paid on the quarterly score</small></div>`;
   let table='';
   if (p){
-    const hide = USERS[S.user].kind==='pm';
+    const hide = UU(S.user).kind==='pm';
     const rows = KPI_DEF.filter(d=>d.p<3).map(d=>{const v=MONTHLY[p][d.n-1];return `<tr class="click" data-act="kpi" data-n="${d.n}" data-p="${p}"><td><span class="kn">${d.n}</span>${esc(d.area)}</td>${v.map((s,i)=>`<td class="c"><span class="mcell" style="color:${scoreCol(s)};background:color-mix(in srgb, ${scoreCol(s)} 14%, transparent)">${s}</span></td>`).join('')}<td class="c">${v[3]<KWARN?'<span class="tag t-bad">Early warning</span>':v[3]<KTARGET?'<span class="tag t-warn">Below target</span>':'<span class="tag t-good">On target</span>'}</td></tr>`}).join('');
     table = `<div class="tbl-wrap"><table class="kmatrix"><thead><tr><th>KPI (target ${KTARGET} each)</th>${MONTHS.map((m,i)=>`<th class="c">${m}${i===3?'*':''}</th>`).join('')}<th class="c">October status</th></tr></thead><tbody>${rows}<tr class="pill-row"><td colspan="6">Pillar 3 · 360° is rated once a year by RG${hide?' and is not shown monthly':''}</td></tr><tr class="tot"><td>Weighted score</td>${MONTHS.map((m,i)=>{const s=monthTotal(p,i);return `<td class="c num"><b style="color:${scoreCol(s)}">${s.toFixed(1)}</b></td>`}).join('')}<td class="c num">${monthTotal(p,3)>=KTARGET?'On target':`${(KTARGET-monthTotal(p,3)).toFixed(1)} short`}</td></tr></tbody></table></div><div class="demo-note" style="padding:10px 16px">* October is month to date. Monthly scores use the same Rev 6 formulas on that month's records; the quarter's score, not the monthly one, drives variable pay.</div>`;
   } else {
     const warn = PMS.flatMap(pm=>KPI_DEF.filter(d=>d.p<3&&MONTHLY[pm][d.n-1][3]<KWARN).map(d=>({pm,d,s:MONTHLY[pm][d.n-1][3]})));
-    table = `<div class="card-b" style="padding-top:0"><div class="eyebrow" style="margin:6px 0 8px">October early warnings (${warn.length})</div><div class="list">${warn.slice(0,6).map(w=>`<div class="item click" data-act="kpi" data-n="${w.d.n}" data-p="${w.pm}" style="cursor:pointer">${av(w.pm)}<div class="main-t"><b style="font-weight:500">KPI ${w.d.n} · ${esc(w.d.area)}</b><div class="meta"><span>${esc(USERS[w.pm].name)}</span><span>Score ${w.s} vs target ${KTARGET}</span></div></div><span class="tag t-bad">Below ${KWARN}</span></div>`).join('')||'<div class="demo-note">None this month.</div>'}</div></div>`;
+    table = `<div class="card-b" style="padding-top:0"><div class="eyebrow" style="margin:6px 0 8px">October early warnings (${warn.length})</div><div class="list">${warn.slice(0,6).map(w=>`<div class="item click" data-act="kpi" data-n="${w.d.n}" data-p="${w.pm}" style="cursor:pointer">${av(w.pm)}<div class="main-t"><b style="font-weight:500">KPI ${w.d.n} · ${esc(w.d.area)}</b><div class="meta"><span>${esc(UU(w.pm).name)}</span><span>Score ${w.s} vs target ${KTARGET}</span></div></div><span class="tag t-bad">Below ${KWARN}</span></div>`).join('')||'<div class="demo-note">None this month.</div>'}</div></div>`;
   }
   return `<div class="card">${head}<div class="card-b"><div class="mchart-wrap">${monthChart(pms)}</div></div>${table}</div>`;
 }
@@ -1130,15 +1132,15 @@ function payMatrix(score){
 function drawerKpi(n, p){
   const d = KPI_DEF[n-1], q = S.kpiQ, pm = p || (isMgr()? null : S.user);
   const v = pm ? kqv(q,pm,n-1) : null, s = pm ? kpiScore(n,v) : null;
-  const hide360 = d.p===3 && USERS[S.user].kind==='pm';
+  const hide360 = d.p===3 && UU(S.user).kind==='pm';
   return `<div class="scrim" data-act="close"><aside class="drawer" role="dialog" aria-label="KPI detail" data-stop>
     <div class="drawer-h"><div style="flex:1"><div class="eyebrow">${PILLARS[d.p]}</div><h2>KPI ${n}. ${esc(d.area)}</h2><div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap"><span class="tag t-accent plain">Weight ${d.w}%</span><span class="tag plain">${esc(d.src)}</span></div></div><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div>
     <div class="drawer-b">
-      ${pm?`<div class="card card-b" style="display:flex;gap:16px;align-items:center;box-shadow:none">${scoreRing(s,84)}<div><div class="who">${av(pm)}<b>${esc(USERS[pm].name)}</b></div><div class="demo-note" style="margin-top:4px">${q==='Q3'?'Q3 final':'Q4 to date'} · ${hide360?'Individual ratings are held by RG and not visible to you':esc(kpiEvidence(n,v))}</div><div style="margin-top:4px;font-size:13px">Contributes <b class="num">${(s*d.w/100).toFixed(2)}</b> of ${d.w} points</div></div></div>`:''}
+      ${pm?`<div class="card card-b" style="display:flex;gap:16px;align-items:center;box-shadow:none">${scoreRing(s,84)}<div><div class="who">${av(pm)}<b>${esc(UU(pm).name)}</b></div><div class="demo-note" style="margin-top:4px">${q==='Q3'?'Q3 final':'Q4 to date'} · ${hide360?'Individual ratings are held by RG and not visible to you':esc(kpiEvidence(n,v))}</div><div style="margin-top:4px;font-size:13px">Contributes <b class="num">${(s*d.w/100).toFixed(2)}</b> of ${d.w} points</div></div></div>`:''}
       <div><div class="eyebrow" style="margin-bottom:8px">How it is measured</div><ul class="bul">${d.how.map(h=>`<li>${esc(h)}</li>`).join('')}</ul></div>
       <div><div class="eyebrow" style="margin-bottom:8px">Formula</div><div class="formula">${esc(d.formula)}</div></div>
       <dl class="kv"><dt>Data source</dt><dd>${esc(d.src)}</dd><dt>Recorded in Optimus</dt><dd>${esc(d.rec)}</dd><dt>Scoring</dt><dd>${n===11?'Banded (exception in Section 2)':n===14?'NPS × 2, capped 0 to 100 (exception)':'Linear: KPI score = compliance %, capped 0 to 100'}</dd>${d.p===1?'<dt>Audit</dt><dd>10% of entries spot-checked monthly against evidence</dd>':''}</dl>
-      ${pm&&isMgr()?`<div><div class="eyebrow" style="margin-bottom:8px">All PMs, ${q==='Q3'?'Q3':'Q4 to date'}</div><div class="grid" style="gap:8px">${PMS.map(x=>{const sx=kpiScore(n,kqv(q,x,n-1));return `<div style="display:flex;align-items:center;gap:10px">${av(x)}<span style="width:110px">${esc(USERS[x].name.split(' ')[0])}</span><div class="bar" style="flex:1"><i style="width:${sx}%;background:${scoreCol(sx)}"></i></div><b class="num" style="width:28px;text-align:right">${Math.round(sx)}</b></div>`}).join('')}</div></div>`:''}
+      ${pm&&isMgr()?`<div><div class="eyebrow" style="margin-bottom:8px">All PMs, ${q==='Q3'?'Q3':'Q4 to date'}</div><div class="grid" style="gap:8px">${PMS.map(x=>{const sx=kpiScore(n,kqv(q,x,n-1));return `<div style="display:flex;align-items:center;gap:10px">${av(x)}<span style="width:110px">${esc(UU(x).name.split(' ')[0])}</span><div class="bar" style="flex:1"><i style="width:${sx}%;background:${scoreCol(sx)}"></i></div><b class="num" style="width:28px;text-align:right">${Math.round(sx)}</b></div>`}).join('')}</div></div>`:''}
     </div></aside></div>`;
 }
 function myKpiCard(){
@@ -1169,20 +1171,23 @@ function viewPayments(){
 }
 
 function viewReports(){
-  const people = ['neha','madhav','ananya','karan','ishita'];
-  return `<div class="page-head"><div><div class="eyebrow">Auto-generated · Monday 12 Oct 2026, 08:00</div><h1>Weekly compliance report</h1><p>Sent to Rajiv and Neha every Monday. Nobody has to compile it.</p></div><button class="btn" data-act="toast" data-t="Report exported (preview)">Export</button></div>
+  const people = trackedPeople();
+  return `<div class="page-head"><div><div class="eyebrow">${db.demo?'Auto-generated · Monday 12 Oct 2026, 08:00':'Live · '+fmtLong(TODAY_ISO)+' · Week '+isoWeek(TODAY)}</div><h1>Weekly compliance report</h1><p>Sent to Rajiv and Neha every Monday. Nobody has to compile it.</p></div><button class="btn" data-act="toast" data-t="Report exported (preview)">Export</button></div>
   <div class="grid g4">
-    <div class="card stat"><span class="lbl">Tasks completed last week</span><span class="val num">23</span><span class="sub">Up from 17</span></div>
+    ${db.demo?`<div class="card stat"><span class="lbl">Tasks completed last week</span><span class="val num">23</span><span class="sub">Up from 17</span></div>
     <div class="card stat alert"><span class="lbl">Overdue at week end</span><span class="val num">${TASKS.filter(isOverdue).length}</span><span class="sub">3 are high priority</span></div>
     <div class="card stat"><span class="lbl">Missing updates</span><span class="val num">2</span><span class="sub">Class notes</span></div>
-    <div class="card stat"><span class="lbl">Escalated to Rajiv</span><span class="val num">1</span><span class="sub">Open more than 7 working days</span></div>
+    <div class="card stat"><span class="lbl">Escalated to Rajiv</span><span class="val num">1</span><span class="sub">Open more than 7 working days</span></div>`:`<div class="card stat"><span class="lbl">Open tasks</span><span class="val num">${TASKS.filter(t=>t.status!=='done').length}</span><span class="sub">Across the team</span></div>
+    <div class="card stat alert"><span class="lbl">Overdue</span><span class="val num">${TASKS.filter(isOverdue).length}</span><span class="sub">${TASKS.filter(t=>isOverdue(t)&&t.pri==='High').length} high priority</span></div>
+    <div class="card stat"><span class="lbl">Missing class notes</span><span class="val num">${SESSIONS.filter(s=>dayDiff(s.date)<-2 && !s.notes).length}</span><span class="sub">Sessions over 2 days old</span></div>
+    <div class="card stat"><span class="lbl">Open 7+ days overdue</span><span class="val num">${TASKS.filter(t=>t.status!=='done' && dayDiff(t.due)<-7).length}</span><span class="sub">Shown to Rajiv by name</span></div>`}
   </div>
   <div class="card"><div class="card-h"><h3>By person</h3></div><div class="tbl-wrap"><table><thead><tr><th>Person</th><th class="r">Open</th><th class="r">Overdue</th><th class="r">On-time rate</th><th>Exceptions raised</th></tr></thead><tbody>
-  ${people.map(p=>{const c=compliance(p);return `<tr><td>${who(p)}</td><td class="r num">${c.open}</td><td class="r num" style="color:${c.od?'var(--bad)':'inherit'}">${c.od}</td><td class="r num"><b>${c.pct}%</b></td><td style="color:var(--ink-2);font-size:13px">${c.od?`Raised with ${esc(USERS[p].name.split(' ')[0])} on 13 Oct`:'None'}</td></tr>`}).join('')}
+  ${people.map(p=>{const c=compliance(p);return `<tr><td>${who(p)}</td><td class="r num">${c.open}</td><td class="r num" style="color:${c.od?'var(--bad)':'inherit'}">${c.od}</td><td class="r num"><b>${c.pct}%</b></td><td style="color:var(--ink-2);font-size:13px">${c.od?(db.demo?`Raised with ${esc(UU(p).name.split(' ')[0])} on 13 Oct`:`${c.od} overdue`):'None'}</td></tr>`}).join('')}
   </tbody></table></div></div>
-  <div class="card"><div class="card-h"><h3>Monthly spot-check, October</h3><small>10% random sample of tracker entries · Section 7</small></div><div class="tbl-wrap"><table><thead><tr><th>Programme Manager</th><th class="r">Entries sampled</th><th class="r">Confirmed</th><th class="r">Open queries</th><th class="r">False entries</th></tr></thead><tbody>
+  ${db.demo?`  <div class="card"><div class="card-h"><h3>Monthly spot-check, October</h3><small>10% random sample of tracker entries · Section 7</small></div><div class="tbl-wrap"><table><thead><tr><th>Programme Manager</th><th class="r">Entries sampled</th><th class="r">Confirmed</th><th class="r">Open queries</th><th class="r">False entries</th></tr></thead><tbody>
     ${[['ananya',18,17,1,0],['karan',15,15,0,0],['ishita',14,12,2,0]].map(r=>`<tr><td>${who(r[0])}</td><td class="r num">${r[1]}</td><td class="r num">${r[2]}</td><td class="r num">${r[3]?`<span class="tag t-warn">${r[3]}</span>`:'0'}</td><td class="r num">${r[4]}</td></tr>`).join('')}
-  </tbody></table></div></div>
+  </tbody></table></div></div>`:''}
   <div class="card card-b" style="font-size:13px;color:var(--ink-2)"><b style="color:var(--ink)">Escalation rule:</b> overdue more than 3 working days, Madhav raises it with the owner. Still open after 7 working days, it appears here by name for Rajiv.</div>`;
 }
 
@@ -1191,7 +1196,7 @@ function viewAdmin(){
   const tabs = `<div class="seg">${[['templates','Recurring templates'],['kpis','KPI framework'],['users','People and access'],['audit','Audit log']].map(([k,l])=>`<button class="${t===k?'on':''}" data-act="admintab" data-v="${k}">${l}</button>`).join('')}</div>`;
   let body='';
   if (t==='templates') body = `<div class="card"><div class="card-h"><h3>Recurring templates</h3><button class="btn sm primary" data-act="toast" data-t="Template editor opens here">${ic('plus')}New template</button></div><div class="tbl-wrap"><table><thead><tr><th>Template</th><th>Assigned to</th><th>Frequency</th><th>Due</th><th>Record required</th><th>Next run</th></tr></thead><tbody>${TEMPLATES.map(x=>`<tr><td><b style="font-weight:600">${esc(x.name)}</b></td><td>${esc(x.who)}</td><td><span class="tag plain t-accent">${x.freq}</span></td><td>${esc(x.when)}</td><td>${esc(x.rec)}</td><td class="num">${x.next==='Auto'?'Per session':fmt(x.next)}</td></tr>`).join('')}</tbody></table></div></div>`;
-  if (t==='users') body = `<div class="card"><div class="tbl-wrap"><table><thead><tr><th>Person</th><th>Role</th><th>Sees</th><th>Honorariums</th></tr></thead><tbody>${Object.keys(USERS).map(id=>{const k=USERS[id].kind;return `<tr><td>${who(id)}</td><td>${esc(USERS[id].role)}</td><td>${k==='pm'?'Own tasks, sessions, students, KPIs':'Everything operational'}</td><td>${k==='chair'||k==='head'?'<span class="tag t-good">Yes</span>':'<span class="tag">No</span>'}</td></tr>`}).join('')}</tbody></table></div></div><p class="demo-note">Only Rajiv can grant access to honorariums. Madhav manages people and roles but cannot grant that permission.</p>`;
+  if (t==='users') body = `<div class="card"><div class="tbl-wrap"><table><thead><tr><th>Person</th><th>Role</th><th>Sees</th><th>Honorariums</th></tr></thead><tbody>${Object.keys(USERS).map(id=>{const k=UU(id).kind;return `<tr><td>${who(id)}</td><td>${esc(UU(id).role)}</td><td>${k==='pm'?'Own tasks, sessions, students, KPIs':'Everything operational'}</td><td>${k==='chair'||k==='head'?'<span class="tag t-good">Yes</span>':'<span class="tag">No</span>'}</td></tr>`}).join('')}</tbody></table></div></div><p class="demo-note">Only Rajiv can grant access to honorariums. Madhav manages people and roles but cannot grant that permission.</p>`;
   if (t==='kpis') body = `<div class="card"><div class="card-h"><h3>KPI framework · Rev 6</h3><span class="tag t-good plain">Weights total ${KPI_DEF.reduce((a,d)=>a+d.w,0)}%</span></div><div class="tbl-wrap"><table><thead><tr><th>KPI</th><th>Pillar</th><th>Data source</th><th>Recorded in Optimus</th><th class="r">Weight</th></tr></thead><tbody>${KPI_DEF.map(d=>`<tr class="click" data-act="kpi" data-n="${d.n}"><td><span class="kn">${d.n}</span>${esc(d.area)}</td><td>${d.p}</td><td style="font-size:13px">${esc(d.src)}</td><td style="font-size:13px">${esc(d.rec)}</td><td class="r num"><b>${d.w}%</b></td></tr>`).join('')}</tbody></table></div></div><p class="demo-note">Only Rajiv can change weights. Each change is versioned so past quarters keep the weights they were scored on.</p>`;
   if (t==='audit') body = `<div class="card"><div class="list">${AUDIT.map(a=>`<div class="item">${av(a[1])}<div class="main-t"><b style="font-weight:500">${esc(USERS[a[1]].name)} ${esc(a[2])}</b><div class="meta">${esc(a[3])}</div></div><span class="mono" style="color:var(--ink-3)">${esc(a[0])}</span></div>`).join('')}</div></div>`;
   return `<div class="page-head"><div><h1>Admin</h1><p>Recurring work, people and access, and a full record of changes.</p></div>${tabs}</div>${body}`;
@@ -1258,7 +1263,7 @@ function viewCohort(c){
     <div class="grid g21"><div class="card"><div class="card-h"><h3>Attendance per session</h3><small>Share of students present or late</small></div><div class="card-b">${trendChart(c)}</div></div>
       <div class="card"><div class="card-h"><h3>Score distribution</h3><small>Students by average score</small></div><div class="card-b">${histChart(c)}</div></div></div>
     <div class="card"><div class="card-h"><h3>Students to watch</h3><small>Attendance below 75% or 2+ missing assignments</small></div><div class="list">${c.students.filter(s=>s.att<75||s.subs.filter(x=>x.st==='Missing').length>=2).map(s=>`<div class="item click" data-act="student" data-id="${s.id}" style="cursor:pointer"><span class="sev" style="background:var(--bad)"></span><div class="main-t"><b>${esc(s.name)}</b><div class="meta"><span>Attendance ${s.att}%</span><span>${s.subs.filter(x=>x.st==='Missing').length} missing</span><span>Last 1:1 ${s.last?fmt(s.last):'not this month'}</span></div></div><span class="btn sm">View</span></div>`).join('')||'<div class="empty">No students at risk</div>'}</div></div>` : `<div class="card"><div class="empty">Analytics appear once ${c.code} starts.</div></div>`;
-  return `<div class="page-head"><div><button class="btn ghost sm" data-act="cback" style="padding-left:0">← All cohorts</button><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><h1>${c.code}</h1>${statusTagC(c)}</div><p>${c.prog} · ${c.size} students · ${esc(USERS[c.pm].name)}</p>${c.status==='Running'?kpiFeeds([4,7,8,12],'This cohort feeds'):''}</div><button class="btn" data-act="upload">${ic('upload')}Bulk upload</button></div>
+  return `<div class="page-head"><div><button class="btn ghost sm" data-act="cback" style="padding-left:0">← All cohorts</button><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><h1>${c.code}</h1>${statusTagC(c)}</div><p>${c.prog} · ${c.size} students · ${esc(UU(c.pm).name)}</p>${c.status==='Running'?kpiFeeds([4,7,8,12],'This cohort feeds'):''}</div><button class="btn" data-act="upload">${ic('upload')}Bulk upload</button></div>
   <div class="seg">${tabs.map(([k,l])=>`<button class="${tab===k?'on':''}" data-act="ctab" data-v="${k}">${l}</button>`).join('')}</div>${body}`;
 }
 
@@ -1303,7 +1308,7 @@ function drawerStudent(s){
       </div>
       <div><div class="eyebrow" style="margin-bottom:10px">Attendance by session</div>${s.attRec.length?`<div class="strip">${s.attRec.map((v,i)=>`<div><span class="hcell lg" style="background:${ATT_C[v]}" title="${ATT_L[v]}">${v}</span><small>S${i+1}</small></div>`).join('')}</div>`:'<div class="demo-note">Starts with the first session.</div>'}</div>
       <div><div class="eyebrow" style="margin-bottom:10px">Assignment scores vs cohort average</div>${asgChart}</div>
-      <div><div class="eyebrow" style="margin-bottom:10px">One-to-ones</div><div class="grid" style="gap:10px">${(s.last?[[s.last,'Monthly check-in logged']]:[]).concat(s.ones).map(([d,t])=>`<div class="comment">${av(c.pm)}<div><b>${esc(USERS[c.pm].name)}</b> <small>${fmt(d)}</small><p>${esc(t)}</p></div></div>`).join('')||'<div class="demo-note">None yet.</div>'}</div></div>
+      <div><div class="eyebrow" style="margin-bottom:10px">One-to-ones</div><div class="grid" style="gap:10px">${(s.last?[[s.last,'Monthly check-in logged']]:[]).concat(s.ones).map(([d,t])=>`<div class="comment">${av(c.pm)}<div><b>${esc(UU(c.pm).name)}</b> <small>${fmt(d)}</small><p>${esc(t)}</p></div></div>`).join('')||'<div class="demo-note">None yet.</div>'}</div></div>
       <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap"><button class="btn" data-act="toast" data-t="Student report exported (preview)">Export report</button><button class="btn primary" data-act="modal" data-m="oneone" data-id="${s.id}">${ic('chat')}Log 1:1</button></div>
     </div></aside></div>`;
 }
@@ -1409,7 +1414,7 @@ function drawerTask(t){
         <dt>Record needed</dt><dd>${esc(t.record)}</dd>
       </dl>
       <div><div class="eyebrow" style="margin-bottom:10px">Updates</div>
-        <div class="grid" style="gap:14px">${t.comments.map(c=>`<div class="comment">${av(c.u)}<div><b>${esc(USERS[c.u].name)}</b> <small>${esc(c.w)}</small><p>${esc(c.t)}</p></div></div>`).join('')||'<div class="demo-note">No updates yet.</div>'}</div>
+        <div class="grid" style="gap:14px">${t.comments.map(c=>`<div class="comment">${av(c.u)}<div><b>${esc(UU(c.u).name)}</b> <small>${esc(c.w)}</small><p>${esc(c.t)}</p></div></div>`).join('')||'<div class="demo-note">No updates yet.</div>'}</div>
       </div>
       <div class="field"><label for="cmt">Add an update</label><textarea id="cmt" placeholder="What changed? Use @ to mention someone."></textarea></div>
       <div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn" data-act="toast" data-t="Attach a file (preview)">Attach file</button><button class="btn primary" data-act="comment" data-id="${t.id}">Post update</button></div>
@@ -1503,7 +1508,7 @@ function modal(kind, id){
     connect:['Log a faculty connect',`<div class="field"><label for="m-f">Faculty</label><select id="m-f">${facs.map(([k,f])=>`<option value="${k}" ${k===id?'selected':''}>${esc(f.name)}</option>`).join('')}</select></div><div class="grid g2"><div class="field"><label for="m-d2">Date</label><input id="m-d2" type="date" value="${TODAY_ISO}"></div><div class="field"><label for="m-mode2">Mode</label><select id="m-mode2"><option>Call</option><option>Meeting</option><option>Email</option></select></div></div><div class="field"><label for="m-n2">Notes and next step</label><textarea id="m-n2" placeholder="Availability, topics, next step"></textarea></div>`,'Save connect'],
     notes:['Add class notes',`<div class="field"><label for="m-ss">Session</label><select id="m-ss">${sessPast.map(s=>`<option value="${s.id}" ${s.id===id?'selected':''}>${esc(s.title)} · ${fmt(s.date)}</option>`).join('')||'<option>No sessions need notes</option>'}</select></div><div class="field"><label for="m-n3">Notes</label><textarea id="m-n3" placeholder="Key points, student questions, follow-ups"></textarea></div>`,'Save notes'],
     sched:['Schedule a class', schedForm(), 'Schedule and add to Google Calendar'],
-    task:['New task',`<div class="field"><label for="m-t">Task</label><input id="m-t" placeholder="What needs to be done?"></div><div class="grid g2"><div class="field"><label for="m-o">Owner</label><select id="m-o">${(isMgr()?Object.keys(USERS):[S.user]).map(u=>`<option value="${u}">${esc(USERS[u].name)}</option>`).join('')}</select></div><div class="field"><label for="m-due">Due</label><input id="m-due" type="date" value="2026-10-22"></div></div><div class="grid g2"><div class="field"><label for="m-fq">Frequency</label><select id="m-fq"><option>One-off</option><option>Daily</option><option>Weekly</option><option>Monthly</option><option>Quarterly</option></select></div><div class="field"><label for="m-p">Priority</label><select id="m-p"><option>High</option><option selected>Medium</option><option>Low</option></select></div></div><div class="field"><label for="m-r">Record of completion</label><input id="m-r" placeholder="e.g. Notes attached, email sent"></div>`,'Create task']
+    task:['New task',`<div class="field"><label for="m-t">Task</label><input id="m-t" placeholder="What needs to be done?"></div><div class="grid g2"><div class="field"><label for="m-o">Owner</label><select id="m-o">${(isMgr()?Object.keys(USERS):[S.user]).map(u=>`<option value="${u}">${esc(UU(u).name)}</option>`).join('')}</select></div><div class="field"><label for="m-due">Due</label><input id="m-due" type="date" value="2026-10-22"></div></div><div class="grid g2"><div class="field"><label for="m-fq">Frequency</label><select id="m-fq"><option>One-off</option><option>Daily</option><option>Weekly</option><option>Monthly</option><option>Quarterly</option></select></div><div class="field"><label for="m-p">Priority</label><select id="m-p"><option>High</option><option selected>Medium</option><option>Low</option></select></div></div><div class="field"><label for="m-r">Record of completion</label><input id="m-r" placeholder="e.g. Notes attached, email sent"></div>`,'Create task']
   };
   const [h,b,cta] = map[kind];
   return `<div class="scrim center" data-act="close"><div class="modal${kind==='sched'?' wide':''}" role="dialog" aria-label="${h}" data-stop><div class="drawer-h"><h2>${h}</h2><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div><div class="drawer-b">${b}</div><div class="modal-f"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="save" data-m="${kind}">${cta}</button></div></div></div>`;
@@ -1538,7 +1543,7 @@ root.addEventListener('click', e=>{
   if (a==='close' && e.target.closest('[data-stop]') && el.classList.contains('scrim')) return;
   if (a!=='notif' && S.notif){ S.notif=false; }
   switch(a){
-    case 'login': S.user=el.dataset.u; S.view=USERS[S.user].kind==='pm'?'myday':'overview'; S.taskScope=USERS[S.user].kind==='chair'?'assigned':'mine'; try{localStorage.setItem('optimus-role',S.user)}catch(_){} render(); window.scrollTo(0,0); break;
+    case 'login': S.user=el.dataset.u; S.view=UU(S.user).kind==='pm'?'myday':'overview'; S.taskScope=UU(S.user).kind==='chair'?'assigned':'mine'; try{localStorage.setItem('optimus-role',S.user)}catch(_){} render(); window.scrollTo(0,0); break;
     case 'logout': if (!db.demo){ db.signOut(); break; } S.user=null; S.drawer=null; S.modal=null; render(); break;
     case 'go': S.view=el.dataset.v; S.drawer=null; S.modal=null; S.cohort=null; render(); window.scrollTo(0,0); break;
     case 'toggle': { e.stopPropagation(); const t=TASKS.find(x=>x.id===el.dataset.id); const was=t.status==='done'; t.status=was?'doing':'done'; render(); toast(was?'Marked as not done':`Done: ${t.title}`); break; }
@@ -1571,7 +1576,7 @@ root.addEventListener('click', e=>{
     case 'invcancel': { const v=INVOICES.find(x=>x.id===el.dataset.id); v.status='cancelled'; render(); toast(`${v.no} cancelled. It stays on record.`); break; }
     case 'invprint': { const v=INVOICES.find(x=>x.id===el.dataset.id); let pa=document.getElementById('print-area'); if (!pa){ pa=document.createElement('div'); pa.id='print-area'; document.body.appendChild(pa); } pa.innerHTML=invDoc(v); const de=document.documentElement; de.classList.add('print-inv'); try{ window.print(); }catch(_){} setTimeout(()=>de.classList.remove('print-inv'), 800); break; }
     case 'save': { const m=el.dataset.m; let msg='Saved';
-      if (m==='sched'){ const d=schedRead(), err=schedCheck(d); if (err){ schedPreview(); break; } const id=newId('S-', 320+SESSIONS.length-9); SESSIONS.push({id,date:d.date,time:d.time,prog:d.prog,cohort:d.cohort,title:d.title,mode:d.mode,venue:d.mode==='Online'?'Zoom':d.venue,zoom:d.mode==='Offline'?null:d.zoom,cal:true,fac:d.fac,pm:S.user==='rajiv'||S.user==='neha'||S.user==='madhav'?((COHORTS.find(c=>c.code===d.cohort)||{}).pm||'ananya'):S.user,notes:false,check:[d.fac?1:0,1,0,1,0],pay:{inv:'Not due',paid:'Not due',tds:'Not due'}}); S.sessTab='upcoming'; msg=`${d.title} scheduled · Google Calendar invite sent to ${d.inv} guests with the ${d.mode==='Offline'?'venue':'Zoom link'}`; }
+      if (m==='sched'){ const d=schedRead(), err=schedCheck(d); if (err){ schedPreview(); break; } const id=newId('S-', 320+SESSIONS.length-9); SESSIONS.push({id,date:d.date,time:d.time,prog:d.prog,cohort:d.cohort,title:d.title,mode:d.mode,venue:d.mode==='Online'?'Zoom':d.venue,zoom:d.mode==='Offline'?null:d.zoom,cal:true,fac:d.fac,pm:isMgr()?((COHORTS.find(c=>c.code===d.cohort)||{}).pm||S.user):S.user,notes:false,check:[d.fac?1:0,1,0,1,0],pay:{inv:'Not due',paid:'Not due',tds:'Not due'}}); S.sessTab='upcoming'; msg=`${d.title} scheduled · Google Calendar invite sent to ${d.inv} guests with the ${d.mode==='Offline'?'venue':'Zoom link'}`; }
       if (m==='invoice'){ S.invTried=true; const v=invRead(), err=invCheck(v); if (err){ invPreview(); break; } v.items=v.items.filter(i=>i.d||i.r); v.id=newId('IV-', 49+INVOICES.length-8); invNext[v.type]++; v.status=el.dataset.draft?'draft':'sent'; INVOICES.unshift(v); S.invTried=false; S.view='invoices'; S.invF='all'; S.drawer=['inv',v.id]; msg=`${v.no} ${v.status==='draft'?'saved as a draft':'created for '+rs(invCalc(v).total)}`; if (el.dataset.dl){ S.modal=null; render(); invPdf(v); break; } }
       if (m==='cohortadd'){ const c=cohortSave(); if (!c) break; S.view='cohorts'; S.cohort=c.code; S.ctab='profile'; msg=`${c.code} added with ${c.size} student${c.size===1?'':'s'}`; }
       if (m==='facform'){ const r=facSave(el.dataset.id||null); if (!r) break; AUDIT.unshift([nowStamp(),S.user,r.isNew?'added faculty':'edited faculty',r.name]); S.drawer=['fac',r.id]; msg = r.isNew ? `${r.name} added to the faculty directory` : `${r.name}'s profile updated`; }
@@ -1592,7 +1597,7 @@ root.addEventListener('click', e=>{
     case 'kpm': S.kpiPm=el.dataset.v; if (el.dataset.go){ S.view='kpis'; window.scrollTo(0,0); } render(); break;
     case 'kpi': e.stopPropagation(); S.drawer=['kpi', el.dataset.n, el.dataset.p]; render(); break;
     case 'ksign': (KSTATE.Q3=KSTATE.Q3||{})[el.dataset.p]='Signed by PM'; render(); toast('Scorecard signed. Sent to Rajiv to approve and lock.'); break;
-    case 'klock': (KSTATE.Q3=KSTATE.Q3||{})[el.dataset.p]='Locked'; render(); toast(`${USERS[el.dataset.p].name}'s Q3 scorecard approved and locked`); break;
+    case 'klock': (KSTATE.Q3=KSTATE.Q3||{})[el.dataset.p]='Locked'; render(); toast(`${UU(el.dataset.p).name}'s Q3 scorecard approved and locked`); break;
     case 'paytab': S.payTab=el.dataset.v; render(); break;
     case 'admintab': S.adminTab=el.dataset.v; render(); break;
     case 'toast': toast(el.dataset.t); break;

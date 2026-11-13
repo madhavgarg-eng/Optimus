@@ -706,7 +706,11 @@ const S = {user:null, view:null, taskFilter:'open', taskScope:'mine', kpiMonth:'
 try{ const r = localStorage.getItem('optimus-role'); if(r && USERS[r]) {} }catch(e){}
 
 // Everyone whose work is tracked: the whole team except the chairperson.
-const trackedPeople = () => db.demo ? ['neha','madhav','ananya','karan','ishita'] : Object.keys(USERS).filter(k=>UU(k).kind!=='chair');
+// "My team" is everyone who reports to me, directly or through someone who reports to me (Admin > People and access > Reports to).
+const teamOf = me => { const out = []; let front = [me]; while (front.length){ const next = Object.keys(USERS).filter(k=>k!==me && !out.includes(k) && front.includes(UU(k).boss)); out.push(...next); front = next; } return out; };
+const teamPms = () => db.demo ? PMS : PMS.filter(p=>teamOf(S.user).includes(p));
+const trackedPeople = () => db.demo ? ['neha','madhav','ananya','karan','ishita'] : teamOf(S.user);
+const noTeamNote = () => `<div class="card"><div class="empty">No one reports to you yet, so your team is empty. ${canManageUsers()?'Set who reports to whom in Admin, then People and access.':'Ask the DWM owner to set it in Admin, then People and access.'}</div></div>`;
 const isMgr = () => ['chair','head','owner','lead'].includes(UU(S.user).kind);
 // Honorarium access is a per-person switch (People and access). The preview falls back to role.
 // The DWM owner always has every kind of access, whatever the hierarchy or switches say.
@@ -1051,19 +1055,20 @@ function viewKpis(){
   const q = S.kpiQ, mgr = isMgr();
   const who2 = mgr ? S.kpiPm : S.user;
   const qSeg = `<div class="seg"><button class="${q==='Q3'?'on':''}" data-act="kq" data-v="Q3">Q3 · Jul–Sep (final)</button><button class="${q==='Q4'?'on':''}" data-act="kq" data-v="Q4">Q4 · Oct–Dec (to date)</button></div>`;
-  const pmSeg = mgr ? `<div class="seg"><button class="${who2==='team'?'on':''}" data-act="kpm" data-v="team">Team</button>${PMS.map(p=>`<button class="${who2===p?'on':''}" data-act="kpm" data-v="${p}">${esc(UU(p).name.split(' ')[0])}</button>`).join('')}</div>` : '';
+  const pmSeg = mgr ? `<div class="seg"><button class="${who2==='team'?'on':''}" data-act="kpm" data-v="team">Team</button>${teamPms().map(p=>`<button class="${who2===p?'on':''}" data-act="kpm" data-v="${p}">${esc(UU(p).name.split(' ')[0])}</button>`).join('')}</div>` : '';
   const head = `<div class="page-head"><div><div class="eyebrow">Rev 6 framework · REV-PM-JD-COC-KPI-2025</div><h1>${mgr?'KPI scorecards':'My KPI scorecard'}</h1><p>18 KPIs in 3 pillars. Each KPI score is its compliance % (0 to 100). Weighted score = Σ (KPI score ÷ 100 × weight).</p></div>${qSeg}</div>${pmSeg?`<div class="toolbar">${pmSeg}</div>`:''}`;
   if (who2==='team') return head + teamKpis(q);
   return head + pmScorecard(who2, q);
 }
 function teamKpis(q){
-  const cards = PMS.map(p=>{ const sc=scorecard(p,q), prev=q==='Q4'?scorecard(p,'Q3').total:null; return `<button class="card kpi-pm" data-act="kpm" data-v="${p}">
+  if (!teamPms().length) return noTeamNote();
+  const cards = teamPms().map(p=>{ const sc=scorecard(p,q), prev=q==='Q4'?scorecard(p,'Q3').total:null; return `<button class="card kpi-pm" data-act="kpm" data-v="${p}">
     <div style="display:flex;gap:14px;align-items:center">${scoreRing(sc.total,84)}<div style="min-width:0"><div class="who">${av(p)}<b>${esc(UU(p).name)}</b></div><div style="margin-top:6px"><span class="tag ${sc.band.cls}">${sc.band.name}</span></div><div class="demo-note" style="margin-top:4px">${q==='Q4'?'Projected payout':'Payout'} ${sc.band.pay}% of variable pay${prev!=null?` · Q3 ${prev.toFixed(1)}`:''}</div></div></div>
     <div class="pill-bars">${[1,2,3].map(i=>{const pp=sc['p'+i];return `<div><span>Pillar ${i}</span><div class="bar"><i style="width:${pp.pts/pp.max*100}%;background:${scoreCol(pp.pts/pp.max*100)}"></i></div><b class="num">${pp.pts.toFixed(1)} / ${pp.max}</b></div>`}).join('')}</div>
     <div class="demo-note">Status: <b style="color:var(--ink)">${kstate(q,p)}</b></div></button>`; }).join('');
-  const matrix = `<div class="card"><div class="card-h"><h2 class="h3">KPI matrix</h2><small>KPI score per PM · click a cell for the formula and evidence</small></div><div class="tbl-wrap"><table class="kmatrix"><thead><tr><th>KPI</th><th class="r">Weight</th>${PMS.map(p=>`<th class="c">${esc(UU(p).name.split(' ')[0])}</th>`).join('')}</tr></thead><tbody>
-    ${[1,2,3].map(pi=>`<tr class="pill-row"><td colspan="${2+PMS.length}">${PILLARS[pi]}</td></tr>`+KPI_DEF.filter(d=>d.p===pi).map(d=>`<tr><td><span class="kn">${d.n}</span>${esc(d.area)}</td><td class="r num">${d.w}%</td>${PMS.map(p=>{const s=kpiScore(d.n,kqv(q,p,d.n-1));return `<td class="c"><button class="kcell" data-act="kpi" data-n="${d.n}" data-p="${p}" style="background:color-mix(in srgb, ${scoreCol(s)} ${s<60?28:18}%, transparent);color:${scoreCol(s)}">${Math.round(s)}</button></td>`}).join('')}</tr>`).join('')).join('')}
-    <tr class="tot"><td>Weighted score</td><td class="r num">100%</td>${PMS.map(p=>{const sc=scorecard(p,q);return `<td class="c num"><b style="color:${scoreCol(sc.total)}">${sc.total.toFixed(1)}</b></td>`}).join('')}</tr>
+  const matrix = `<div class="card"><div class="card-h"><h2 class="h3">KPI matrix</h2><small>KPI score per PM · click a cell for the formula and evidence</small></div><div class="tbl-wrap"><table class="kmatrix"><thead><tr><th>KPI</th><th class="r">Weight</th>${teamPms().map(p=>`<th class="c">${esc(UU(p).name.split(' ')[0])}</th>`).join('')}</tr></thead><tbody>
+    ${[1,2,3].map(pi=>`<tr class="pill-row"><td colspan="${2+teamPms().length}">${PILLARS[pi]}</td></tr>`+KPI_DEF.filter(d=>d.p===pi).map(d=>`<tr><td><span class="kn">${d.n}</span>${esc(d.area)}</td><td class="r num">${d.w}%</td>${teamPms().map(p=>{const s=kpiScore(d.n,kqv(q,p,d.n-1));return `<td class="c"><button class="kcell" data-act="kpi" data-n="${d.n}" data-p="${p}" style="background:color-mix(in srgb, ${scoreCol(s)} ${s<60?28:18}%, transparent);color:${scoreCol(s)}">${Math.round(s)}</button></td>`}).join('')}</tr>`).join('')).join('')}
+    <tr class="tot"><td>Weighted score</td><td class="r num">100%</td>${teamPms().map(p=>{const sc=scorecard(p,q);return `<td class="c num"><b style="color:${scoreCol(sc.total)}">${sc.total.toFixed(1)}</b></td>`}).join('')}</tr>
   </tbody></table></div></div>`;
   return `<div class="grid g3">${cards}</div>${monthlyCard(null)}${matrix}${payMatrix(null)}`;
 }
@@ -1118,7 +1123,7 @@ function monthChart(pms){
   return `<svg viewBox="0 0 ${W} ${H}" class="mchart" role="img" aria-label="Weighted KPI score by month against the target">${grid}${lab}${lines}${xs}</svg>${key}`;
 }
 function monthlyCard(p){
-  const pms = p ? [p] : PMS;
+  const pms = p ? [p] : teamPms();
   const head = `<div class="card-h"><h2 class="h3">Monthly progress, target vs actual</h2><small>Reviewed every month · paid on the quarterly score</small></div>`;
   let table='';
   if (p){
@@ -1126,7 +1131,7 @@ function monthlyCard(p){
     const rows = KPI_DEF.filter(d=>d.p<3).map(d=>{const v=MONTHLY[p][d.n-1];return `<tr class="click" data-act="kpi" data-n="${d.n}" data-p="${p}"><td><span class="kn">${d.n}</span>${esc(d.area)}</td>${v.map((s,i)=>`<td class="c"><span class="mcell" style="color:${scoreCol(s)};background:color-mix(in srgb, ${scoreCol(s)} 14%, transparent)">${s}</span></td>`).join('')}<td class="c">${v[3]<KWARN?'<span class="tag t-bad">Early warning</span>':v[3]<KTARGET?'<span class="tag t-warn">Below target</span>':'<span class="tag t-good">On target</span>'}</td></tr>`}).join('');
     table = `<div class="tbl-wrap"><table class="kmatrix"><thead><tr><th>KPI (target ${KTARGET} each)</th>${MONTHS.map((m,i)=>`<th class="c">${m}${i===3?'*':''}</th>`).join('')}<th class="c">October status</th></tr></thead><tbody>${rows}<tr class="pill-row"><td colspan="6">Pillar 3 · 360° is rated once a year by RG${hide?' and is not shown monthly':''}</td></tr><tr class="tot"><td>Weighted score</td>${MONTHS.map((m,i)=>{const s=monthTotal(p,i);return `<td class="c num"><b style="color:${scoreCol(s)}">${s.toFixed(1)}</b></td>`}).join('')}<td class="c num">${monthTotal(p,3)>=KTARGET?'On target':`${(KTARGET-monthTotal(p,3)).toFixed(1)} short`}</td></tr></tbody></table></div><div class="demo-note" style="padding:10px 16px">* October is month to date. Monthly scores use the same Rev 6 formulas on that month's records; the quarter's score, not the monthly one, drives variable pay.</div>`;
   } else {
-    const warn = PMS.flatMap(pm=>KPI_DEF.filter(d=>d.p<3&&MONTHLY[pm][d.n-1][3]<KWARN).map(d=>({pm,d,s:MONTHLY[pm][d.n-1][3]})));
+    const warn = teamPms().flatMap(pm=>KPI_DEF.filter(d=>d.p<3&&MONTHLY[pm][d.n-1][3]<KWARN).map(d=>({pm,d,s:MONTHLY[pm][d.n-1][3]})));
     table = `<div class="card-b" style="padding-top:0"><div class="eyebrow" style="margin:6px 0 8px">October early warnings (${warn.length})</div><div class="list">${warn.slice(0,6).map(w=>`<div class="item click" data-act="kpi" data-n="${w.d.n}" data-p="${w.pm}" style="cursor:pointer">${av(w.pm)}<div class="main-t"><b style="font-weight:500">KPI ${w.d.n} · ${esc(w.d.area)}</b><div class="meta"><span>${esc(UU(w.pm).name)}</span><span>Score ${w.s} vs target ${KTARGET}</span></div></div><span class="tag t-bad">Below ${KWARN}</span></div>`).join('')||'<div class="demo-note">None this month.</div>'}</div></div>`;
   }
   return `<div class="card">${head}<div class="card-b"><div class="mchart-wrap">${monthChart(pms)}</div></div>${table}</div>`;
@@ -1150,7 +1155,7 @@ function drawerKpi(n, p){
       <div><div class="eyebrow" style="margin-bottom:8px">How it is measured</div><ul class="bul">${d.how.map(h=>`<li>${esc(h)}</li>`).join('')}</ul></div>
       <div><div class="eyebrow" style="margin-bottom:8px">Formula</div><div class="formula">${esc(d.formula)}</div></div>
       <dl class="kv"><dt>Data source</dt><dd>${esc(d.src)}</dd><dt>Recorded in Optimus</dt><dd>${esc(d.rec)}</dd><dt>Scoring</dt><dd>${n===11?'Banded (exception in Section 2)':n===14?'NPS × 2, capped 0 to 100 (exception)':'Linear: KPI score = compliance %, capped 0 to 100'}</dd>${d.p===1?'<dt>Audit</dt><dd>10% of entries spot-checked monthly against evidence</dd>':''}</dl>
-      ${pm&&isMgr()?`<div><div class="eyebrow" style="margin-bottom:8px">All PMs, ${q==='Q3'?'Q3':'Q4 to date'}</div><div class="grid" style="gap:8px">${PMS.map(x=>{const sx=kpiScore(n,kqv(q,x,n-1));return `<div style="display:flex;align-items:center;gap:10px">${av(x)}<span style="width:110px">${esc(UU(x).name.split(' ')[0])}</span><div class="bar" style="flex:1"><i style="width:${sx}%;background:${scoreCol(sx)}"></i></div><b class="num" style="width:28px;text-align:right">${Math.round(sx)}</b></div>`}).join('')}</div></div>`:''}
+      ${pm&&isMgr()?`<div><div class="eyebrow" style="margin-bottom:8px">All PMs, ${q==='Q3'?'Q3':'Q4 to date'}</div><div class="grid" style="gap:8px">${teamPms().map(x=>{const sx=kpiScore(n,kqv(q,x,n-1));return `<div style="display:flex;align-items:center;gap:10px">${av(x)}<span style="width:110px">${esc(UU(x).name.split(' ')[0])}</span><div class="bar" style="flex:1"><i style="width:${sx}%;background:${scoreCol(sx)}"></i></div><b class="num" style="width:28px;text-align:right">${Math.round(sx)}</b></div>`}).join('')}</div></div>`:''}
     </div></div></div>`;
 }
 function myKpiCard(){
@@ -1160,8 +1165,9 @@ function myKpiCard(){
     <div class="grid" style="gap:8px"><div class="eyebrow">Where you are losing points</div>${gaps.map(g=>`<button class="gap-row" data-act="kpi" data-n="${g.n}" data-p="${S.user}"><span class="kn">${g.n}</span><span style="flex:1;text-align:left">${esc(g.area)}</span><b class="num" style="color:var(--bad)">−${(g.w-g.pts).toFixed(1)}</b></button>`).join('')}</div></div></div>`;
 }
 function teamKpiCard(){
+  if (!teamPms().length) return "";
   return `<div class="card"><div class="card-h"><h2 class="h3">PM KPI scorecards</h2><button class="btn ghost sm" data-act="go" data-v="kpis">Open KPIs</button></div><div class="tbl-wrap"><table><thead><tr><th>Programme Manager</th><th>Q4 to date</th><th>Band</th><th class="r">Projected payout</th><th class="r">Q3 final</th><th>Biggest gap</th><th>Q3 status</th></tr></thead><tbody>
-  ${PMS.map(p=>{const sc=scorecard(p,'Q4'),q3=scorecard(p,'Q3'),g=sc.rows.slice().sort((a,b)=>(b.w-b.pts)-(a.w-a.pts))[0];return `<tr class="click" data-act="kpm" data-v="${p}" data-go="1"><td>${who(p)}</td><td><div style="display:flex;align-items:center;gap:8px;min-width:140px"><div class="bar" style="flex:1"><i style="width:${sc.total}%;background:${scoreCol(sc.total)}"></i></div><b class="num">${sc.total.toFixed(1)}</b></div></td><td><span class="tag ${sc.band.cls}">${sc.band.name}</span></td><td class="r num">${sc.band.pay}%</td><td class="r num">${q3.total.toFixed(1)}</td><td style="font-size:13px"><span class="kn">${g.n}</span>${esc(g.area)} <span style="color:var(--bad)" class="num">−${(g.w-g.pts).toFixed(1)}</span></td><td><span class="tag plain">${KSTATE.Q3[p]}</span></td></tr>`}).join('')}
+  ${teamPms().map(p=>{const sc=scorecard(p,'Q4'),q3=scorecard(p,'Q3'),g=sc.rows.slice().sort((a,b)=>(b.w-b.pts)-(a.w-a.pts))[0];return `<tr class="click" data-act="kpm" data-v="${p}" data-go="1"><td>${who(p)}</td><td><div style="display:flex;align-items:center;gap:8px;min-width:140px"><div class="bar" style="flex:1"><i style="width:${sc.total}%;background:${scoreCol(sc.total)}"></i></div><b class="num">${sc.total.toFixed(1)}</b></div></td><td><span class="tag ${sc.band.cls}">${sc.band.name}</span></td><td class="r num">${sc.band.pay}%</td><td class="r num">${q3.total.toFixed(1)}</td><td style="font-size:13px"><span class="kn">${g.n}</span>${esc(g.area)} <span style="color:var(--bad)" class="num">−${(g.w-g.pts).toFixed(1)}</span></td><td><span class="tag plain">${KSTATE.Q3[p]}</span></td></tr>`}).join('')}
   </tbody></table></div></div>`;
 }
 

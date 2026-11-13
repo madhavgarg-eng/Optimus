@@ -12,8 +12,7 @@
 -- unless it is switched on in Admin > People and access.
 -- New people create their own account; they see nothing until the DWM owner approves the request.
 --
--- BEFORE RUNNING: replace the REPLACE_ME emails with real ones. Any left as REPLACE_ME keep the
--- email already saved for that person. Run in Supabase > SQL Editor > New query.
+-- The emails below are the real ones. Run in Supabase > SQL Editor > New query.
 
 begin;
 
@@ -85,11 +84,11 @@ delete from public.team_members
 where key not in ('rajiv', 'neha', 'madhav', 'shivpriya', 'priyanshi');
 
 insert into public.team_members (key, email, name, title, kind, color, can_see_honorariums, reports_to) values
-  ('rajiv',     'REPLACE_ME_rajiv@mastersunion.org',     'Rajiv Gupta', 'Chairperson',            'chair', '#111111', true, null),
-  ('neha',      'REPLACE_ME_neha@mastersunion.org',      'Neha Kadian', 'Senior Program Manager', 'head',  '#3B3B3B', true, null),
+  ('rajiv',     'rajiv.gupta@mastersunion.org',          'Rajiv Gupta', 'Chairperson',            'chair', '#111111', true, null),
+  ('neha',      'neha.kadian@mastersunion.org',          'Neha Kadian', 'Senior Program Manager', 'head',  '#3B3B3B', true, null),
   ('madhav',    'madhav.garg@mastersunion.org',          'Madhav Garg', 'DWM Owner',              'owner', '#5F5F5F', true, null),
-  ('shivpriya', 'REPLACE_ME_shivpriya@mastersunion.org', 'Shivpriya',   'Program Manager',        'lead',  '#404040', true, null),
-  ('priyanshi', 'REPLACE_ME_priyanshi@mastersunion.org', 'Priyanshi',   'Intern',                 'pm',    '#1D4ED8', true, 'neha')
+  ('shivpriya', 'shivpriya@mastersunion.org',            'Shivpriya',   'Program Manager',        'lead',  '#404040', true, null),
+  ('priyanshi', 'p.sonthalia27@gmail.com',               'Priyanshi',   'Intern',                 'pm',    '#1D4ED8', true, 'neha')
 on conflict (key) do update
   set email = case when excluded.email like 'REPLACE_ME%' then public.team_members.email else excluded.email end,
       name = excluded.name, title = excluded.title, kind = excluded.kind, color = excluded.color,

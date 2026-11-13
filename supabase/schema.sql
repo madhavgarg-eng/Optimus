@@ -3,9 +3,12 @@
 
 -- ============ 1. Team list (who can sign in, and their role) ============
 -- kind: chair | head | owner | lead | pm
---   chair, head  : full access, including honorariums, bank details and senior-faculty invoices
---   owner, lead  : team view, confidential money fields masked
---   pm           : own work, confidential money fields masked
+--   owner        : DWM owner. Everything, whatever the hierarchy, and approves new sign-ups
+--   chair, head  : all work, and manage people
+--   lead         : team view
+--   pm           : own work
+-- Honorariums (faculty rates, bank details, senior-faculty invoices) are a separate per-person
+-- switch, can_see_honorariums. It is always on for the DWM owner.
 create table if not exists public.team_members (
   key        text primary key,                 -- short id used inside the app, e.g. 'ananya'
   email      text unique not null,             -- must match the person's Supabase login email
@@ -13,18 +16,20 @@ create table if not exists public.team_members (
   title      text not null default '',
   kind       text not null check (kind in ('chair','head','owner','lead','pm')),
   color      text not null default '#525252',
+  can_see_honorariums boolean not null default false,  -- faculty rates, bank details, senior-faculty invoices
   created_at timestamptz not null default now()
 );
+alter table public.team_members add column if not exists can_see_honorariums boolean not null default false;
 
 -- Starter team. CHANGE THE EMAILS to real ones (here, or later in Table Editor > team_members).
-insert into public.team_members (key, email, name, title, kind, color) values
-  ('rajiv',     'rajiv@example.com',     'Rajiv Gupta',   'Chairperson',        'chair', '#111111'),
-  ('neha',      'neha@example.com',      'Neha Kadian',   'Head of Operations', 'head',  '#3B3B3B'),
-  ('madhav',    'madhav@example.com',    'Madhav Garg',   'DWM Owner',          'owner', '#5F5F5F'),
-  ('shivpriya', 'shivpriya@example.com', 'Shivpriya',     'Team Lead',          'lead',  '#404040'),
-  ('ananya',    'ananya@example.com',    'Ananya Sharma', 'Programme Manager',  'pm',    '#1D4ED8'),
-  ('karan',     'karan@example.com',     'Karan Mehta',   'Programme Manager',  'pm',    '#6B7280'),
-  ('ishita',    'ishita@example.com',    'Ishita Rao',    'Programme Manager',  'pm',    '#D97706')
+insert into public.team_members (key, email, name, title, kind, color, can_see_honorariums) values
+  ('rajiv',     'rajiv@example.com',     'Rajiv Gupta',   'Chairperson',        'chair', '#111111', true),
+  ('neha',      'neha@example.com',      'Neha Kadian',   'Head of Operations', 'head',  '#3B3B3B', true),
+  ('madhav',    'madhav@example.com',    'Madhav Garg',   'DWM Owner',          'owner', '#5F5F5F', false),
+  ('shivpriya', 'shivpriya@example.com', 'Shivpriya',     'Team Lead',          'lead',  '#404040', false),
+  ('ananya',    'ananya@example.com',    'Ananya Sharma', 'Programme Manager',  'pm',    '#1D4ED8', false),
+  ('karan',     'karan@example.com',     'Karan Mehta',   'Programme Manager',  'pm',    '#6B7280', false),
+  ('ishita',    'ishita@example.com',    'Ishita Rao',    'Programme Manager',  'pm',    '#D97706', false)
 on conflict (key) do nothing;
 
 -- ============ 2. Helper functions used by the access rules ============
@@ -38,15 +43,14 @@ language sql stable security definer set search_path = public as $$
 $$;
 create or replace function public.is_member() returns boolean
 language sql stable as $$ select public.my_member_key() is not null $$;
-create or replace function public.can_see_confidential() returns boolean
-language sql stable as $$ select coalesce(public.my_kind() in ('chair','head'), false) $$;
 create or replace function public.is_manager() returns boolean
 language sql stable as $$ select coalesce(public.my_kind() in ('chair','head','owner','lead'), false) $$;
 
 -- ============ 3. App data ============
 -- One row per item (a task, a session, a faculty member, an invoice...). The item itself is in "data".
 -- confidential = true rows (honorariums, faculty bank/PAN/rates, senior-faculty invoices) are
--- readable only by chair and head. Everyone else can add them but never read them back.
+-- readable only by the DWM owner and people with honorarium access. Everyone else can add them
+-- but never read them back.
 create table if not exists public.records (
   collection   text not null check (collection in
                ('tasks','sessions','faculty','faculty_private','cohorts','honoraria','invoices','settings')),
@@ -72,7 +76,7 @@ begin
   if tg_op = 'UPDATE' then
     new.created_at := old.created_at;
     new.seq := old.seq;
-    -- once confidential, an item cannot be made public again except by chair/head
+    -- once confidential, an item cannot be made public again except by someone with honorarium access
     if old.confidential and not new.confidential and not public.can_see_confidential() then
       new.confidential := true;
     end if;
@@ -124,21 +128,65 @@ alter table public.records      enable row level security;
 alter table public.audit_log    enable row level security;
 
 drop policy if exists tm_read  on public.team_members;
-drop policy if exists tm_write on public.team_members;
-drop policy if exists tm_admin_all on public.team_members;
-drop policy if exists tm_owner_add on public.team_members;
-drop policy if exists tm_owner_edit on public.team_members;
-drop policy if exists tm_owner_remove on public.team_members;
 create policy tm_read  on public.team_members for select to authenticated using (public.is_member());
+
+-- The DWM owner has every kind of access, whatever the hierarchy. Others see honorariums only if
+-- their switch is on.
+create or replace function public.can_see_confidential() returns boolean
+language sql stable security definer set search_path = public as $$
+  select coalesce((select can_see_honorariums or kind = 'owner' from public.team_members
+                   where lower(email) = lower(coalesce(auth.jwt() ->> 'email', '')) limit 1), false)
+$$;
+create or replace function public.is_owner() returns boolean
+language sql stable as $$ select coalesce(public.my_kind() = 'owner', false) $$;
+
+-- Who may change the team list
+--   DWM owner: anyone, any level, and honorarium access.
+--   Others with honorarium access: anyone except DWM owners, and cannot make someone a DWM owner.
+--   Chair and head without it: only team-view and own-work people without honorarium access.
+drop policy if exists tm_write        on public.team_members;
+drop policy if exists tm_dwm_owner    on public.team_members;
+drop policy if exists tm_admin_all    on public.team_members;
+drop policy if exists tm_owner_add    on public.team_members;
+drop policy if exists tm_owner_edit   on public.team_members;
+drop policy if exists tm_owner_remove on public.team_members;
+drop policy if exists tm_mgr_add      on public.team_members;
+drop policy if exists tm_mgr_edit     on public.team_members;
+drop policy if exists tm_mgr_remove   on public.team_members;
+create policy tm_dwm_owner on public.team_members for all to authenticated
+  using (public.is_owner()) with check (public.is_owner());
 create policy tm_admin_all on public.team_members for all to authenticated
-  using (public.can_see_confidential()) with check (public.can_see_confidential());
-create policy tm_owner_add on public.team_members for insert to authenticated
-  with check (public.my_kind() = 'owner' and kind in ('owner','lead','pm'));
-create policy tm_owner_edit on public.team_members for update to authenticated
-  using (public.my_kind() = 'owner' and kind in ('owner','lead','pm'))
-  with check (public.my_kind() = 'owner' and kind in ('owner','lead','pm'));
-create policy tm_owner_remove on public.team_members for delete to authenticated
-  using (public.my_kind() = 'owner' and kind in ('owner','lead','pm'));
+  using (public.can_see_confidential() and kind <> 'owner')
+  with check (public.can_see_confidential() and kind <> 'owner');
+create policy tm_mgr_add on public.team_members for insert to authenticated
+  with check (public.my_kind() in ('chair','head') and kind in ('lead','pm') and not can_see_honorariums);
+create policy tm_mgr_edit on public.team_members for update to authenticated
+  using (public.my_kind() in ('chair','head') and kind in ('lead','pm') and not can_see_honorariums)
+  with check (public.my_kind() in ('chair','head') and kind in ('lead','pm') and not can_see_honorariums);
+create policy tm_mgr_remove on public.team_members for delete to authenticated
+  using (public.my_kind() in ('chair','head') and kind in ('lead','pm') and not can_see_honorariums);
+
+-- Sign-up requests. Anyone can create an account; it does nothing until the DWM owner approves it
+-- (by adding them to team_members). Until then they can only see their own request.
+create table if not exists public.join_requests (
+  email        text primary key,
+  name         text not null default '',
+  note         text not null default '',
+  status       text not null default 'pending' check (status in ('pending','declined')),
+  requested_at timestamptz not null default now()
+);
+alter table public.join_requests enable row level security;
+drop policy if exists jr_self_read   on public.join_requests;
+drop policy if exists jr_self_add    on public.join_requests;
+drop policy if exists jr_dwm_owner   on public.join_requests;
+create policy jr_self_read on public.join_requests for select to authenticated
+  using (lower(email) = lower(coalesce(auth.jwt() ->> 'email', '')));
+create policy jr_self_add on public.join_requests for insert to authenticated
+  with check (lower(email) = lower(coalesce(auth.jwt() ->> 'email', '')) and status = 'pending' and not public.is_member());
+create policy jr_dwm_owner on public.join_requests for all to authenticated
+  using (public.is_owner()) with check (public.is_owner());
+grant select, insert, update, delete on public.join_requests to authenticated;
+revoke all on public.join_requests from anon;
 
 drop policy if exists rec_read   on public.records;
 drop policy if exists rec_insert on public.records;

@@ -21,13 +21,23 @@ async function selectAll(table, columns, order) {
 }
 
 export async function loadWorkspace(email) {
-  const members = await selectAll('team_members', 'key,email,name,title,kind,color', 'key');
+  const members = await selectAll('team_members', 'key,email,name,title,kind,color,can_see_honorariums', 'key');
   const me = members.find(m => (m.email || '').toLowerCase() === email.toLowerCase());
-  if (!me) return { me: null, members };
+  if (!me) {
+    const { data: req, error } = await sb.from('join_requests').select('email,name,status,requested_at').maybeSingle();
+    fail(error, 'Checking your request');
+    return { me: null, members, request: req };
+  }
+  let requests = [];
+  if (me.kind === 'owner') {
+    const { data, error } = await sb.from('join_requests').select('email,name,note,status,requested_at').order('requested_at', { ascending: false });
+    fail(error, 'Loading sign-up requests');
+    requests = data;
+  }
   const rows = await selectAll('records', 'collection,id,seq,data', 'seq');
   const { data: log, error } = await sb.from('audit_log').select('at,actor_key,action,detail').eq('kind', 'app').order('at', { ascending: false }).limit(300);
   fail(error, 'Loading activity');
-  return { me, members, rows, audit: log.map(a => [stamp(a.at), a.actor_key, a.action, a.detail || '']) };
+  return { me, members, requests, rows, audit: log.map(a => [stamp(a.at), a.actor_key, a.action, a.detail || '']) };
 }
 
 export async function saveRows(rows, blind) {
@@ -66,4 +76,19 @@ export async function removeMember(key) {
   const { data, error } = await sb.from('team_members').delete().eq('key', key).select('key');
   fail(error, 'Removing person');
   if (!data || !data.length) throw new Error('You are not allowed to remove this person.');
+}
+
+// Sign-up requests: a new account asks to join; the DWM owner approves (adds them to the team) or declines.
+export async function requestAccess(email, name) {
+  const { error } = await sb.from('join_requests').insert({ email: email.toLowerCase(), name });
+  if (error && error.code !== '23505') fail(error, 'Sending your request');
+}
+export async function declineRequest(email) {
+  const { data, error } = await sb.from('join_requests').update({ status: 'declined' }).eq('email', email).select('email');
+  fail(error, 'Declining request');
+  if (!data || !data.length) throw new Error('Only the DWM owner can decline requests.');
+}
+export async function clearRequest(email) {
+  const { error } = await sb.from('join_requests').delete().eq('email', email);
+  fail(error, 'Clearing request');
 }

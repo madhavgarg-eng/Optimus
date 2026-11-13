@@ -1,5 +1,5 @@
 import './style.css';
-import { configured, sb, loadWorkspace, saveRows, addAudit, upload, fileUrl, fileBlob, saveMember, removeMember } from './db.js';
+import { configured, sb, loadWorkspace, saveRows, addAudit, upload, fileUrl, fileBlob, saveMember, removeMember, requestAccess, declineRequest, clearRequest } from './db.js';
 import { bootOptimus } from './app.js';
 
 const root = document.getElementById('root');
@@ -14,7 +14,7 @@ function art() {
     </div>
     <div class="login-promise">
       <div><b>One source of truth</b>Tasks, sessions, faculty, students and KPIs</div>
-      <div><b>Private where it matters</b>Honorariums visible only to Rajiv and Neha</div>
+      <div><b>Private where it matters</b>Honorariums visible only to people you allow</div>
     </div></section>`;
 }
 function screen(inner) {
@@ -50,8 +50,9 @@ function loginForm(err = '') {
 const emailOk = e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
 function setupForm(err = '') {
   screen(`<div><div class="eyebrow">Optimus</div><h2 style="margin-top:6px">Set up your account</h2></div>
-    <p style="color:var(--ink-2);margin:0">Use the work email your admin added to Optimus, and choose a password.</p>
+    <p style="color:var(--ink-2);margin:0">Create your account with your work email. The DWM owner approves new accounts before you can see anything.</p>
     <form id="sf" style="display:flex;flex-direction:column;gap:12px">
+      <div class="field"><label for="sn">Full name</label><input id="sn" autocomplete="name" required></div>
       <div class="field"><label for="se">Work email</label><input id="se" type="email" autocomplete="username" required></div>
       <div class="field"><label for="sp">New password (at least 8 characters)</label><input id="sp" type="password" autocomplete="new-password" minlength="8" required></div>
       <div class="field"><label for="sp2">Repeat password</label><input id="sp2" type="password" autocomplete="new-password" required></div>
@@ -62,15 +63,16 @@ function setupForm(err = '') {
   document.getElementById('back').onclick = () => loginForm();
   document.getElementById('sf').onsubmit = async e => {
     e.preventDefault();
-    const email = document.getElementById('se').value.trim().toLowerCase(), p1 = document.getElementById('sp').value, p2 = document.getElementById('sp2').value;
+    const name = document.getElementById('sn').value.trim(), email = document.getElementById('se').value.trim().toLowerCase(), p1 = document.getElementById('sp').value, p2 = document.getElementById('sp2').value;
+    if (!name) return setupForm('Enter your full name.');
     if (!emailOk(email)) return setupForm('Enter a valid email.');
     if (p1.length < 8) return setupForm('Use at least 8 characters.');
     if (p1 !== p2) return setupForm('The two passwords do not match.');
     const btn = e.target.querySelector('button[type=submit]'); btn.disabled = true; btn.textContent = 'Creating…';
-    const { data, error } = await sb.auth.signUp({ email, password: p1, options: { emailRedirectTo: location.origin } });
-    if (error) return setupForm(/signups not allowed|disabled/i.test(error.message) ? 'Account set-up is switched off. Ask your admin to turn on sign-ups in Supabase.' : error.message);
+    const { data, error } = await sb.auth.signUp({ email, password: p1, options: { emailRedirectTo: location.origin, data: { name } } });
+    if (error) return setupForm(/signups not allowed|disabled/i.test(error.message) ? 'Account set-up is switched off. Ask the DWM owner to turn on sign-ups in Supabase.' : error.message);
     if (data.session) return start();
-    message('Check your email', `We sent a confirmation link to <b>${esc(email)}</b>. Click it, then sign in with your new password. If nothing arrives in a few minutes, check spam or ask your admin.`, false);
+    message('Check your email', `We sent a confirmation link to <b>${esc(email)}</b>. Click it, then sign in with your new password. The DWM owner then approves your account. If nothing arrives in a few minutes, check spam or ask the DWM owner.`, false);
     root.querySelector('.login-card').insertAdjacentHTML('beforeend', '<button class="btn" id="bk" style="align-self:flex-start">Back to sign in</button>');
     document.getElementById('bk').onclick = () => loginForm();
   };
@@ -113,6 +115,22 @@ function newPasswordForm(err = '') {
   };
 }
 
+// Signed in, but not on the team yet: send a request to the DWM owner and wait.
+async function waiting(session, req) {
+  const email = session.user.email;
+  if (!req) {
+    const name = ((session.user.user_metadata || {}).name || '').trim() || email.split('@')[0];
+    try { await requestAccess(email, name); req = { status: 'pending' }; }
+    catch (e) { console.error(e); return message('Could not send your request', esc(e.message)); }
+  }
+  if (req.status === 'declined') return message('Your request was declined', `The DWM owner did not approve <b>${esc(email)}</b> for Optimus. If you think this is a mistake, speak to them directly.`);
+  message('Waiting for approval', `Your account <b>${esc(email)}</b> is set up. The DWM owner has been asked to approve it and choose your access. You can open Optimus once they do.`);
+  const so = document.getElementById('so');
+  so.insertAdjacentHTML('beforebegin', '<div style="display:flex;gap:8px" id="wbtns"><button class="btn primary" id="again">Check again</button></div>');
+  document.getElementById('wbtns').appendChild(so);
+  document.getElementById('again').onclick = () => start();
+}
+
 async function start() {
   const { data: { session } } = await sb.auth.getSession();
   if (!session) return loginForm();
@@ -120,10 +138,11 @@ async function start() {
   let ws;
   try { ws = await loadWorkspace(session.user.email); }
   catch (e) { console.error(e); return message('Could not load Optimus', esc(e.message) + '<br>Check that the database setup script has been run in Supabase.'); }
-  if (!ws.me) return message('You are not on the team list yet', `You are signed in as <b>${esc(session.user.email)}</b>, but that email is not in Optimus's team list. Ask your admin to add it.`);
+  if (!ws.me) return waiting(session, ws.request);
   bootOptimus({
     demo: false, status: '', me: ws.me.key, members: ws.members, rows: ws.rows, audit: ws.audit,
-    signOut, saveRows, addAudit, upload, fileUrl, fileBlob, saveMember, removeMember
+    requests: ws.requests || [],
+    signOut, saveRows, addAudit, upload, fileUrl, fileBlob, saveMember, removeMember, declineRequest, clearRequest
   });
 }
 

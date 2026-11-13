@@ -332,10 +332,10 @@ function drawerInvoice(v){
   if (canAct && !h && v.status!=='received' && ['Awaiting payment','Partly paid','Overdue'].includes(s)) acts.push(`<button class="btn primary" data-act="modal" data-m="invpay" data-id="${v.id}">Record payment</button>`);
   if (canAct && ['Draft','Awaiting payment','Overdue'].includes(s) && !v.pays.length) acts.push(`<button class="btn ghost" data-act="invcancel" data-id="${v.id}">Cancel invoice</button>`);
   return `<div class="scrim" data-act="close"><aside class="drawer wide" role="dialog" aria-label="Invoice detail" data-stop>
-    <div class="drawer-h"><div style="flex:1"><div class="mono" style="color:var(--ink-3)">${esc(v.no)} · ${v.type==='sales'?'Receivable':'Payable to faculty'}</div><h2>${esc(invParty(v))}</h2><div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap">${invTag(v)}${invConf(v)?`<span class="tag t-warn">${ic('lock')} Senior faculty · Rajiv and Neha only</span>`:''}</div></div><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div>
+    <div class="drawer-h"><div style="flex:1"><div class="mono" style="color:var(--ink-3)">${esc(v.no)} · ${v.type==='sales'?'Receivable':'Payable to faculty'}</div><h2>${esc(invParty(v))}</h2><div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap">${invTag(v)}${invConf(v)?`<span class="tag t-warn">${ic('lock')} Senior faculty · honorarium access only</span>`:''}</div></div><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div>
     <div class="drawer-b">
       ${acts.length?`<div style="display:flex;gap:8px;flex-wrap:wrap">${acts.join('')}</div>`:''}
-      ${h?`<div class="card"><div class="lock">${ic('lock')}<h3>Amounts are confidential</h3><p style="max-width:44ch;margin:0">This is a senior faculty honorarium, so only Rajiv and Neha can see the invoice amount. You can still see its status: <b>${esc(s)}</b>.</p></div></div>`:`
+      ${h?`<div class="card"><div class="lock">${ic('lock')}<h3>Amounts are confidential</h3><p style="max-width:44ch;margin:0">This is a senior faculty honorarium, so only people with honorarium access can see the invoice amount. You can still see its status: <b>${esc(s)}</b>.</p></div></div>`:`
       <div class="grid g4" style="gap:10px">
         <div class="card stat"><span class="lbl">Invoice total</span><span class="val num" style="font-size:22px">${rs(c.total)}</span></div>
         <div class="card stat"><span class="lbl">Received</span><span class="val num" style="font-size:22px">${rs(c.settled-v.pays.reduce((a,p)=>a+p.tds,0))}</span></div>
@@ -457,7 +457,7 @@ function invPreview(e){
   const v = invRead(), err = invCheck(v);
   const conf = v.type==='faculty' && FACULTY[v.fac] && FACULTY[v.fac].senior;
   box.innerHTML = invDoc(v, true);
-  const ee = g('iv-err'); if (ee) ee.textContent = S.invTried ? err : (conf ? 'Senior faculty: after saving, only Rajiv and Neha will see this amount.' : '');
+  const ee = g('iv-err'); if (ee) ee.textContent = S.invTried ? err : (conf ? 'Senior faculty: after saving, only people with honorarium access will see this amount.' : '');
 }
 document.addEventListener('input', e=>{ if (e.target.closest && e.target.closest('.ivf')) invPreview(e); });
 document.addEventListener('change', e=>{ if (e.target.closest && e.target.closest('.ivf')) invPreview(e); });
@@ -528,11 +528,11 @@ function viewFaculty(){
   const all = activeFac(), toConnect = all.filter(([,f])=>!f.lastContact || f.lastContact<'2026-10-01');
   const totalHrs = list.reduce((a,[,f])=>a+(+f.hours||0),0), totalSess = list.reduce((a,[,f])=>a+(+f.sessions||0),0), totalHon = list.reduce((a,[,f])=>a+facHon(f),0);
   const seg = `<div class="seg">${[['all','All'],['Reverentia','Reverentia payroll'],['MU','MU payroll']].map(([k,l])=>`<button class="${pf===k?'on':''}" data-act="facpay" data-v="${k}">${l}</button>`).join('')}</div>`;
-  return `<div class="page-head"><div><h1>Faculty directory</h1><p>Every faculty member's profile, payroll, sessions, hours and honorarium in one place. Honorariums and bank details are visible only to Rajiv and Neha.</p>${kpiFeeds([3,2])}</div><div class="toolbar"><button class="btn" data-act="modal" data-m="connect">${ic('phone')}Log a connect</button><button class="btn" data-act="modal" data-m="invrecv">${ic('upload')}Attach received invoice</button>${isMgr()?`<button class="btn primary" data-act="modal" data-m="facform">${ic('plus')}Add faculty</button>`:''}</div></div>
+  return `<div class="page-head"><div><h1>Faculty directory</h1><p>Every faculty member's profile, payroll, sessions, hours and honorarium in one place. Honorariums and bank details are visible only to people with honorarium access.</p>${kpiFeeds([3,2])}</div><div class="toolbar"><button class="btn" data-act="modal" data-m="connect">${ic('phone')}Log a connect</button><button class="btn" data-act="modal" data-m="invrecv">${ic('upload')}Attach received invoice</button>${isMgr()?`<button class="btn primary" data-act="modal" data-m="facform">${ic('plus')}Add faculty</button>`:''}</div></div>
   <div class="grid g4">
     <div class="card stat"><span class="lbl">Faculty in directory</span><span class="val num">${all.length}</span><span class="sub">${all.filter(([,f])=>f.payroll==='MU').length} on MU payroll · ${all.filter(([,f])=>f.payroll!=='MU').length} on Reverentia</span></div>
     <div class="card stat"><span class="lbl">Sessions and hours taken</span><span class="val num">${hrs(totalHrs)} h</span><span class="sub">${totalSess} sessions${pf!=='all'?' · filtered':''}</span></div>
-    <div class="card stat"><span class="lbl">Honorarium to date</span><span class="val num">${honTxt(totalHon)}</span><span class="sub">${canConf()?'Rate × hours or sessions taken':`${ic('lock')} Only Rajiv and Neha can see amounts`}</span></div>
+    <div class="card stat"><span class="lbl">Honorarium to date</span><span class="val num">${honTxt(totalHon)}</span><span class="sub">${canConf()?'Rate × hours or sessions taken':`${ic('lock')} Honorarium access needed to see amounts`}</span></div>
     <div class="card stat alert"><span class="lbl">Not contacted this quarter</span><span class="val num">${toConnect.length}</span><span class="sub">Quarterly connect due by 31 Dec</span></div>
   </div>
   <div class="toolbar">${seg}</div>
@@ -576,7 +576,7 @@ function facForm(id){
     <div class="grid g3 sc-when"><div class="field"><label for="ff-p">Payroll</label><select id="ff-p"><option value="Reverentia" ${f.payroll!=='MU'?'selected':''}>Reverentia</option><option value="MU" ${f.payroll==='MU'?'selected':''}>Masters' Union (MU)</option></select></div><div class="field"><label for="ff-pm">Programme Manager</label><select id="ff-pm">${PMS.map(p=>`<option value="${p}" ${f.pm===p?'selected':''}>${esc(UU(p).name)}</option>`).join('')}</select></div><div class="field"><label>&nbsp;</label><label style="display:flex;gap:8px;align-items:center;font-weight:500;font-size:13px;color:var(--ink)"><input type="checkbox" id="ff-sr" ${f.senior?'checked':''}> Senior faculty</label></div></div>
     <div class="iv-sec">Sessions, hours and honorarium</div>
     <div class="grid g2"><div class="field"><label for="ff-s">Sessions taken</label><input id="ff-s" type="number" min="0" step="1" value="${+f.sessions||0}"></div><div class="field"><label for="ff-h">Hours taken</label><input id="ff-h" type="number" min="0" step="0.5" value="${+f.hours||0}"></div></div>
-    ${conf?`<div class="grid g2"><div class="field"><label for="ff-b">Honorarium basis</label><select id="ff-b"><option value="hour" ${f.basis==='hour'?'selected':''}>Per hour</option><option value="session" ${f.basis==='session'?'selected':''}>Per session</option></select></div><div class="field"><label for="ff-r">Rate (₹)</label><input id="ff-r" type="number" min="0" step="500" value="${v(f.rate)}"></div></div><div class="iv-ro" id="ff-calc"></div>`:`<div class="iv-ro">${ic('lock')} Honorarium rates are set by Rajiv or Neha. Totals show as XXXX for everyone else.</div>`}
+    ${conf?`<div class="grid g2"><div class="field"><label for="ff-b">Honorarium basis</label><select id="ff-b"><option value="hour" ${f.basis==='hour'?'selected':''}>Per hour</option><option value="session" ${f.basis==='session'?'selected':''}>Per session</option></select></div><div class="field"><label for="ff-r">Rate (₹)</label><input id="ff-r" type="number" min="0" step="500" value="${v(f.rate)}"></div></div><div class="iv-ro" id="ff-calc"></div>`:`<div class="iv-ro">${ic('lock')} Honorarium rates are set by people with honorarium access. Totals show as XXXX for everyone else.</div>`}
     <div class="iv-sec">Bank details</div>
     ${hideBank?`<div class="demo-note">Bank details on file are hidden. Leave these blank to keep them, or type new details to replace them.</div>`:''}
     <div class="grid g2"><div class="field"><label for="ff-bh">Account holder</label><input id="ff-bh" value="${hideBank?'':v(f.bank.holder)}" placeholder="${hideBank?'On file':''}"></div><div class="field"><label for="ff-bn">Bank</label><input id="ff-bn" value="${hideBank?'':v(f.bank.bank)}" placeholder="${hideBank?'On file':''}"></div></div>
@@ -616,7 +616,7 @@ function recvSum(e){
   if (e && e.target.id==='ir-ss' && g('ir-ss').value){ const s=SESSIONS.find(x=>x.id===g('ir-ss').value); if (s){ if (s.fac && [...g('ir-f').options].some(o=>o.value===s.fac)) g('ir-f').value=s.fac; g('ir-desc').value='Teaching honorarium: '+s.title+' ('+fmt(s.date)+')'; } }
   const a=+g('ir-a').value||0, gst=Math.round(a*(+g('ir-g').value)/100), tds=Math.round(a*(+g('ir-t').value)/100);
   const sen = FACULTY[g('ir-f').value] && FACULTY[g('ir-f').value].senior;
-  box.innerHTML = a ? `Invoice total <b>${rs(a+gst)}</b>${gst?` (incl. GST ${rs(gst)})`:''} · TDS ${rs(tds)} · <b>net to pay ${rs(a+gst-tds)}</b>${sen&&!canConf()?' · amount will then show only to Rajiv and Neha':''}` : 'Enter the amount to see the total, TDS and net payable.';
+  box.innerHTML = a ? `Invoice total <b>${rs(a+gst)}</b>${gst?` (incl. GST ${rs(gst)})`:''} · TDS ${rs(tds)} · <b>net to pay ${rs(a+gst-tds)}</b>${sen&&!canConf()?' · amount will then show only to people with honorarium access':''}` : 'Enter the amount to see the total, TDS and net payable.';
 }
 document.addEventListener('input', e=>{ if (e.target.closest && e.target.closest('.recvf')) recvSum(e); });
 document.addEventListener('change', e=>{ if (e.target.closest && e.target.closest('.recvf')) recvSum(e); });
@@ -697,6 +697,7 @@ const BRIDGE = {
   login(key){
     S.user = key; S.view = UU(key).kind==='pm' ? 'myday' : 'overview';
     S.taskScope = UU(key).kind==='chair' ? 'assigned' : 'mine';
+    if (pendingReqs().length) S.adminTab = 'users';
   }
 };
 
@@ -707,7 +708,14 @@ try{ const r = localStorage.getItem('optimus-role'); if(r && USERS[r]) {} }catch
 // Everyone whose work is tracked: the whole team except the chairperson.
 const trackedPeople = () => db.demo ? ['neha','madhav','ananya','karan','ishita'] : Object.keys(USERS).filter(k=>UU(k).kind!=='chair');
 const isMgr = () => ['chair','head','owner','lead'].includes(UU(S.user).kind);
-const canConf = () => ['chair','head'].includes(UU(S.user).kind);
+// Honorarium access is a per-person switch (People and access). The preview falls back to role.
+// The DWM owner always has every kind of access, whatever the hierarchy or switches say.
+const isOwner = id => UU(id).kind === 'owner';
+const hasHon = id => { const u = UU(id); if (u.kind === 'owner') return true; return u.hon != null ? !!u.hon : ['chair','head'].includes(u.kind); };
+const canConf = () => hasHon(S.user);
+// Sign-up requests waiting for the DWM owner (the database only returns them to an owner).
+const REQUESTS = db.demo ? [{email:'riya.kapoor@mastersunion.org', name:'Riya Kapoor', status:'pending', requested_at:new Date().toISOString()}] : (db.requests||[]).slice();
+const pendingReqs = () => isOwner(S.user) ? REQUESTS.filter(r=>r.status==='pending') : [];
 const isOverdue = t => t.status!=='done' && dayDiff(t.due) < 0;
 const visibleTasks = () => isMgr() ? TASKS : TASKS.filter(t=>t.owner===S.user);
 const visibleSessions = () => isMgr() ? SESSIONS : SESSIONS.filter(s=>s.pm===S.user);
@@ -772,7 +780,7 @@ function navFor(){
   if (k!=='pm') items.push(['payments','Payments','wallet']);
   items.push(['invoices','Invoices','receipt',visibleInvoices().filter(v=>invStatus(v)==='Overdue').length]);
   if (k!=='pm') items.push(['reports','Reports','file']);
-  if (k==='owner' || k==='chair' || k==='head') items.push(['admin','Admin','gear']);
+  if (k==='owner' || k==='chair' || k==='head') items.push(['admin','Admin','gear',pendingReqs().length]);
   return items;
 }
 
@@ -798,7 +806,7 @@ function viewLogin(){
     <button class="gbtn" data-act="login" data-u="rajiv"><svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>Continue with Google</button>
     <div class="divider">Demo: view as</div>
     <div style="display:flex;flex-direction:column;gap:8px">
-      ${order.map(id=>`<button class="persona" data-act="login" data-u="${id}">${av(id,true)}<span><b>${esc(UU(id).name)}</b><small>${esc(UU(id).role)}</small></span><span class="tag plain ${UU(id).kind==='pm'?'t-accent':''}">${UU(id).kind==='pm'?'Own work only':UU(id).kind==='chair'||UU(id).kind==='head'?'Full access':'Team view'}</span></button>`).join('')}
+      ${order.map(id=>`<button class="persona" data-act="login" data-u="${id}">${av(id,true)}<span><b>${esc(UU(id).name)}</b><small>${esc(UU(id).role)}</small></span><span class="tag plain ${UU(id).kind==='pm'?'t-accent':''}">${UU(id).kind==='pm'?'Own work only':UU(id).kind==='owner'?'Everything':UU(id).kind==='chair'||UU(id).kind==='head'?'Full access':'Team view'}</span></button>`).join('')}
     </div>
     <p class="demo-note">This is a design preview with sample data. Names, sessions and figures are illustrative.</p>
   </div></section></div>`;
@@ -843,6 +851,7 @@ function notifications(){
   mine.filter(isOverdue).slice(0,3).forEach(t=>out.push(['bad',`${esc(t.title)}`,`${esc(UU(t.owner).name)} · overdue since ${fmt(t.due)}`]));
   mine.filter(t=>t.status!=='done' && dayDiff(t.due)>=0 && dayDiff(t.due)<=2).slice(0,2).forEach(t=>out.push(['warn',esc(t.title),dueText(t.due)]));
   if (UU(S.user).kind==='pm' && kstate('Q3',S.user)==='Ready for review') out.unshift(['info','Your Q3 KPI scorecard is ready. Review and sign it by 30 Oct.','KPIs · today']);
+  if (pendingReqs().length) out.unshift(['info',`${pendingReqs().length===1?esc(pendingReqs()[0].name||pendingReqs()[0].email)+' is':pendingReqs().length+' people are'} waiting for you to approve their Optimus account.`,'Admin · People and access']);
   if (UU(S.user).kind==='chair') out.unshift(['info','Ananya Sharma signed her Q3 KPI scorecard. Approve and lock it by 30 Oct.','KPIs · today']);
   return out;
 }
@@ -1063,7 +1072,7 @@ function pmScorecard(p,q){
   let action = '';
   if (q==='Q3' && st==='Ready for review' && k==='pm' && p===S.user) action = `<button class="btn primary" data-act="ksign" data-p="${p}">Sign scorecard</button><button class="btn" data-act="toast" data-t="Data query raised. It is resolved by tracker records only.">Raise data query</button>`;
   if (q==='Q3' && st==='Ready for review' && k!=='pm') action = `<span class="demo-note">Waiting for ${esc(UU(p).name.split(' ')[0])} to sign</span>`;
-  if (q==='Q3' && st==='Signed by PM' && k==='chair') action = `<button class="btn primary" data-act="klock" data-p="${p}">Approve and lock</button>`;
+  if (q==='Q3' && st==='Signed by PM' && (k==='chair'||k==='owner')) action = `<button class="btn primary" data-act="klock" data-p="${p}">Approve and lock</button>`;
   if (q==='Q3' && st==='Signed by PM' && k==='pm') action = `<span class="demo-note">Waiting for Rajiv to approve and lock</span>`;
   return `<div class="grid g21">
     <div class="card"><div class="card-b" style="display:flex;gap:20px;align-items:center;flex-wrap:wrap">
@@ -1163,9 +1172,9 @@ function viewPayments(){
     const list = SESSIONS.filter(s=>dayDiff(s.date)<0).sort((a,b)=>b.date.localeCompare(a.date));
     body = `<div class="card"><div class="tbl-wrap"><table><thead><tr><th>Session</th><th>Faculty</th><th>Invoice</th><th>Payment</th><th>TDS</th><th>PM</th></tr></thead><tbody>${list.map(s=>`<tr><td><b style="font-weight:600">${esc(s.title)}</b><div style="font-size:12px;color:var(--ink-3)">${fmt(s.date)}</div></td><td>${facName(s.fac)}</td><td>${payTag(s.pay.inv)}</td><td>${payTag(s.pay.paid)}</td><td>${payTag(s.pay.tds)}</td><td>${who(s.pm)}</td></tr>`).join('')}</tbody></table></div></div>`;
   } else if (!canConf()){
-    body = `<div class="card"><div class="lock">${ic('lock')}<h3>Only Rajiv and Neha can see honorariums</h3><p style="max-width:44ch;margin:0">Senior faculty honorariums are confidential. The database blocks this data for every other role, including admins.</p></div></div>`;
+    body = `<div class="card"><div class="lock">${ic('lock')}<h3>You don't have honorarium access</h3><p style="max-width:44ch;margin:0">Senior faculty honorariums are confidential. The database only sends them to people who have been given honorarium access.</p></div></div>`;
   } else {
-    body = `<div class="card"><div class="card-h"><h3>Senior faculty honorariums</h3><span class="tag t-warn">${ic('lock')} Visible to Rajiv and Neha only</span></div><div class="tbl-wrap"><table><thead><tr><th>Faculty</th><th>Session</th><th class="r">Amount</th><th>Status</th><th>Note</th></tr></thead><tbody>${HONORARIA.map(h=>`<tr><td><b style="font-weight:600">${facName(h.fac)}</b></td><td>${esc(SESSIONS.find(s=>s.id===h.session).title)}</td><td class="r num"><b>${inr(h.amt)}</b></td><td><span class="tag ${h.status==='Paid'?'t-good':h.status==='Approved'?'t-info':''}">${h.status}</span></td><td style="color:var(--ink-2)">${esc(h.note)}</td></tr>`).join('')}</tbody></table></div></div>`;
+    body = `<div class="card"><div class="card-h"><h3>Senior faculty honorariums</h3><span class="tag t-warn">${ic('lock')} Honorarium access only</span></div><div class="tbl-wrap"><table><thead><tr><th>Faculty</th><th>Session</th><th class="r">Amount</th><th>Status</th><th>Note</th></tr></thead><tbody>${HONORARIA.map(h=>`<tr><td><b style="font-weight:600">${facName(h.fac)}</b></td><td>${esc(SESSIONS.find(s=>s.id===h.session).title)}</td><td class="r num"><b>${inr(h.amt)}</b></td><td><span class="tag ${h.status==='Paid'?'t-good':h.status==='Approved'?'t-info':''}">${h.status}</span></td><td style="color:var(--ink-2)">${esc(h.note)}</td></tr>`).join('')}</tbody></table></div></div>`;
   }
   return `<div class="page-head"><div><h1>Payments</h1><p>Faculty payment and TDS status by session.</p>${kpiFeeds([2])}</div>${tabs}</div>${body}`;
 }
@@ -1204,46 +1213,68 @@ function viewAdmin(){
 
 /* ---------------- people and access ---------------- */
 const LEVELS = {
-  chair:['Chairperson','Everything, including honorariums and bank details. Approves KPIs.'],
-  head:['Full access','Everything, including honorariums, bank details and senior-faculty invoices.'],
-  owner:['DWM owner','All operational work, and manages people. Honorariums masked.'],
-  lead:['Team view','All operational work. Honorariums masked.'],
-  pm:['Own work','Own tasks, sessions, cohorts and KPIs. Honorariums masked.']
+  chair:['Chairperson','All work. Approves KPIs and manages people.'],
+  head:['Full access','All work. Verifies KPIs and manages people.'],
+  owner:['DWM owner','Everything, whatever the hierarchy. Approves new sign-ups and manages everyone.'],
+  lead:['Team view','All operational work.'],
+  pm:['Own work','Own tasks, sessions, cohorts and KPIs.']
 };
-const canManageUsers = () => ['chair','head','owner'].includes(UU(S.user).kind);
-const grantable = () => canConf() ? Object.keys(LEVELS) : ['owner','lead','pm'];
-const canEditMember = id => canManageUsers() && (canConf() || !['chair','head'].includes(UU(id).kind));
+const canManageUsers = () => canConf() || ['chair','head','owner'].includes(UU(S.user).kind);
+// Only a DWM owner can make someone else a DWM owner or change an owner's access.
+const grantable = () => isOwner(S.user) ? Object.keys(LEVELS) : canConf() ? ['chair','head','lead','pm'] : ['lead','pm'];
+const LEVEL_HELP = 'Access level decides which work someone sees. Honorarium access is a separate switch.';
+const canEditMember = id => isOwner(S.user) || (canManageUsers() && !isOwner(id) && (canConf() || (!hasHon(id) && !['chair','head'].includes(UU(id).kind))));
 function usersTab(){
   const order = Object.keys(LEVELS);
   const ids = Object.keys(USERS).sort((a,b)=>order.indexOf(UU(a).kind)-order.indexOf(UU(b).kind) || UU(a).name.localeCompare(UU(b).name));
-  return `<div class="card"><div class="card-h"><h3>People and access</h3>${canManageUsers()?`<button class="btn sm primary" data-act="modal" data-m="member">${ic('plus')}Add person</button>`:''}</div><div class="tbl-wrap"><table><thead><tr><th>Person</th><th>Title</th><th>Access level</th><th>Email</th><th>Honorariums</th><th></th></tr></thead><tbody>${ids.map(id=>{const u=UU(id), k=u.kind;return `<tr><td>${who(id)}</td><td>${esc(u.role)}</td><td><b style="font-weight:600">${esc((LEVELS[k]||[k])[0])}</b><div style="font-size:12px;color:var(--ink-3);max-width:34ch">${esc((LEVELS[k]||['',''])[1])}</div></td><td style="font-size:13px">${esc(u.email||'')}</td><td>${k==='chair'||k==='head'?'<span class="tag t-good">Visible</span>':'<span class="tag">Masked</span>'}</td><td class="r">${canEditMember(id)?`<button class="btn sm" data-act="modal" data-m="member" data-id="${id}">Edit</button>${id!==S.user?` <button class="btn sm" data-act="modal" data-m="memberdel" data-id="${id}">Remove</button>`:''}`:''}</td></tr>`}).join('')}</tbody></table></div></div>
-  <p class="demo-note">${canConf()?'You can give any access level.':'Only Rajiv and Neha can give honorarium access, or change people who have it.'} Added someone? Tell them to open Optimus, choose <b>First time here? Set up your account</b>, and use the email you entered.</p>`;
+  return `${requestsCard()}<div class="card"><div class="card-h"><h3>People and access</h3>${canManageUsers()?`<button class="btn sm primary" data-act="modal" data-m="member">${ic('plus')}Add person</button>`:''}</div><div class="tbl-wrap"><table><thead><tr><th>Person</th><th>Title</th><th>Access level</th><th>Email</th><th>Honorariums</th><th></th></tr></thead><tbody>${ids.map(id=>{const u=UU(id), k=u.kind;return `<tr><td>${who(id)}</td><td>${esc(u.role)}</td><td><b style="font-weight:600">${esc((LEVELS[k]||[k])[0])}</b><div style="font-size:12px;color:var(--ink-3);max-width:34ch">${esc((LEVELS[k]||['',''])[1])}</div></td><td style="font-size:13px">${esc(u.email||'')}</td><td>${hasHon(id)?'<span class="tag t-good">Visible</span>':'<span class="tag">Masked</span>'}</td><td class="r">${canEditMember(id)?`<button class="btn sm" data-act="modal" data-m="member" data-id="${id}">Edit</button>${id!==S.user?` <button class="btn sm" data-act="modal" data-m="memberdel" data-id="${id}">Remove</button>`:''}`:''}</td></tr>`}).join('')}</tbody></table></div></div>
+  <p class="demo-note">${isOwner(S.user)?'As DWM owner you can give any access level and change anyone.':canConf()?'Only a DWM owner can add or change DWM owners.':'Only people with honorarium access can give it, or change people who have it.'} New people can create their own account from the sign-in page, and the DWM owner approves it here. You can also add someone directly; they then set up their account with the email you entered.</p>`;
 }
-function memberForm(id){
-  const u = id ? UU(id) : {name:'',role:'',kind:'pm',email:''};
+function requestsCard(){
+  if (!isOwner(S.user)) return '';
+  const list = REQUESTS.slice().sort((a,b)=>(a.status==='pending'?0:1)-(b.status==='pending'?0:1) || String(b.requested_at).localeCompare(String(a.requested_at)));
+  const when = iso => { try { return fmt(String(iso).slice(0,10)); } catch(_) { return ''; } };
+  return `<div class="card"><div class="card-h"><h3>Sign-up requests</h3><small>${pendingReqs().length} waiting</small></div>${list.length?`<div class="tbl-wrap"><table><thead><tr><th>Name</th><th>Email</th><th>Asked on</th><th>Status</th><th></th></tr></thead><tbody>${list.map(r=>`<tr><td><b style="font-weight:600">${esc(r.name||'—')}</b></td><td style="font-size:13px">${esc(r.email)}</td><td class="num">${when(r.requested_at)}</td><td>${r.status==='pending'?'<span class="tag t-warn">Waiting</span>':'<span class="tag">Declined</span>'}</td><td class="r"><button class="btn sm primary" data-act="modal" data-m="approve" data-id="${esc(r.email)}">${r.status==='pending'?'Approve':'Approve anyway'}</button>${r.status==='pending'?` <button class="btn sm" data-act="reqdecline" data-id="${esc(r.email)}">Decline</button>`:''}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty">No one is waiting. When someone creates an account, their request appears here.</div>'}</div>`;
+}
+async function reqDecline(email, btn){
+  const r = REQUESTS.find(x=>x.email===email); if (!r) return;
+  btn.disabled = true; btn.textContent = 'Declining…';
+  try {
+    if (!db.demo) await db.declineRequest(email);
+    r.status = 'declined';
+    AUDIT.unshift([nowStamp(), S.user, 'declined sign-up', r.name ? `${r.name} · ${email}` : email]);
+    toast(`${r.name||email} declined. They cannot see anything in Optimus.`);
+  } catch(e){ btn.disabled = false; btn.textContent = 'Decline'; toast(e.message || 'Could not decline.'); }
+}
+function memberForm(id, req){
+  const u = id ? UU(id) : {name:(req&&req.name)||'',role:'',kind:'pm',email:(req&&req.email)||''};
   return `<div class="grid memberf" style="gap:12px">
     <div class="grid g2"><div class="field"><label for="mb-n">Name</label><input id="mb-n" value="${esc(u.name)}"></div><div class="field"><label for="mb-t">Title</label><input id="mb-t" value="${esc(u.role)}" placeholder="e.g. Program Manager"></div></div>
-    <div class="field"><label for="mb-e">Work email (their sign-in)</label><input id="mb-e" type="email" value="${esc(u.email||'')}"></div>
+    <div class="field"><label for="mb-e">Work email (their sign-in)</label><input id="mb-e" type="email" value="${esc(u.email||'')}" ${req?'readonly':''}></div>
     <div class="field"><label for="mb-k">Access level</label><select id="mb-k">${grantable().map(k=>`<option value="${k}" ${k===u.kind?'selected':''}>${LEVELS[k][0]} · ${LEVELS[k][1]}</option>`).join('')}</select></div>
+    ${canConf()?`<label id="mb-hl" style="display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line-2);border-radius:10px;padding:10px 12px;cursor:pointer"><input type="checkbox" id="mb-h" ${(id&&hasHon(id))||u.kind==='owner'?'checked':''} ${u.kind==='owner'?'disabled':''} style="margin-top:3px"><span><b>Can see honorariums</b><span style="display:block;font-size:12px;color:var(--ink-3)">Faculty rates, honorarium totals, bank details and senior-faculty invoices. Off for new people unless you tick it. Always on for a DWM owner.</span></span></label>`:`<div class="iv-ro">${ic('lock')} Honorariums stay hidden from this person. Only someone with honorarium access can switch it on.</div>`}
+    <p class="demo-note" style="margin:0">${LEVEL_HELP}</p>
     <span class="sc-err" id="mb-err"></span>
   </div>`;
 }
 async function memberSave(id, btn){
+  const req = btn.dataset.req ? REQUESTS.find(r=>r.email===btn.dataset.req) : null;
   const g=x=>document.getElementById(x), val=x=>g(x).value.trim();
-  const name=val('mb-n'), title=val('mb-t'), email=val('mb-e').toLowerCase(), kind=val('mb-k');
-  const err = !name ? 'Add their name.' : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? 'Add a valid email address.' : Object.keys(USERS).some(k=>k!==id && (UU(k).email||'').toLowerCase()===email) ? 'Someone on the team already uses that email.' : !grantable().includes(kind) ? 'You cannot give that access level.' : '';
+  const name=val('mb-n'), title=val('mb-t'), email=val('mb-e').toLowerCase(), kind=val('mb-k'), hon = kind==='owner' || (canConf() ? g('mb-h').checked : false);
+  const err = !name ? 'Add their name.' : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? 'Add a valid email address.' : Object.keys(USERS).some(k=>k!==id && (UU(k).email||'').toLowerCase()===email) ? 'Someone on the team already uses that email.' : !grantable().includes(kind) ? 'You cannot give that access level.' : (id===S.user && isOwner(id) && kind!=='owner' && !Object.keys(USERS).some(k=>k!==id && UU(k).kind==='owner')) ? 'Optimus needs at least one DWM owner. Make someone else DWM owner first.' : '';
   if (err){ g('mb-err').textContent = err; return; }
   let key = id;
   if (!key){ const base = (name.toLowerCase().split(/\s+/)[0].replace(/[^a-z0-9]/g,'') || 'user').slice(0,20); key = base; let n=2; while (USERS[key]) key = base + n++; }
-  const row = {key, name, title, email, kind, color: (USERS[key]&&USERS[key].color) || '#525252'};
+  const row = {key, name, title, email, kind, can_see_honorariums: hon, color: (USERS[key]&&USERS[key].color) || '#525252'};
   btn.disabled = true; btn.textContent = 'Saving…';
   try {
     if (!db.demo) await db.saveMember(row);
-    USERS[key] = {name, role:title, kind, color:row.color, email};
+    if (req){ if (!db.demo) { try { await db.clearRequest(req.email); } catch(e){ console.error(e); } } REQUESTS.splice(REQUESTS.indexOf(req),1); }
+    USERS[key] = {name, role:title, kind, color:row.color, email, hon};
     PMS.length = 0; PMS.push(...Object.keys(USERS).filter(k=>USERS[k].kind==='pm'));
-    AUDIT.unshift([nowStamp(), S.user, id?'edited person':'added person', `${name} · ${LEVELS[kind][0]}`]);
-    S.modal = null; toast(id ? `${name} updated` : `${name} added. They can now set up their account.`);
-  } catch(e){ btn.disabled = false; btn.textContent = id?'Save changes':'Add person'; g('mb-err').textContent = e.message || 'Could not save.'; }
+    AUDIT.unshift([nowStamp(), S.user, id?'edited person':req?'approved sign-up':'added person', `${name} · ${LEVELS[kind][0]}${hon?' · honorariums visible':''}`]);
+    S.modal = null; toast(id ? `${name} updated` : req ? `${name} approved. They can sign in now.` : `${name} added. They can now set up their account.`);
+  } catch(e){ btn.disabled = false; btn.textContent = id?'Save changes':req?'Approve':'Add person'; g('mb-err').textContent = e.message || 'Could not save.'; }
 }
 async function memberRemove(id, btn){
   const name = UU(id).name; btn.disabled = true; btn.textContent = 'Removing…';
@@ -1435,6 +1466,7 @@ async function cohortParse(file){
     prev.innerHTML = `<span class="sc-err">Could not read ${esc(file.name)}: ${esc(e && e.message || 'unknown error')}</span>`;
   }
 }
+document.addEventListener('change', e=>{ if (e.target.id==='mb-k'){ const h=document.getElementById('mb-h'); if (h){ if (e.target.value==='owner'){ if (!h.disabled) h.dataset.prev = h.checked; h.checked = true; h.disabled = true; } else if (h.disabled){ h.disabled = false; h.checked = h.dataset.prev === 'true'; } } } });
 document.addEventListener('change', e=>{ if (e.target.id==='co-file' && e.target.files[0]) cohortParse(e.target.files[0]); });
 document.addEventListener('input', e=>{ if (e.target.closest && e.target.closest('.coform')){ const x=document.getElementById('co-err'); if (x) x.textContent=''; } });
 function cohortSave(){
@@ -1549,6 +1581,7 @@ document.addEventListener('change', e=>{ if (e.target.closest && e.target.closes
 function modal(kind, id){
   if (kind==='invoice') return `<div class="scrim center" data-act="close"><div class="modal xwide" role="dialog" aria-label="Create invoice" data-stop><div class="drawer-h"><div style="flex:1"><div class="eyebrow">Standard Reverentia invoice</div><h2>Create invoice</h2></div><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div><div class="drawer-b">${invForm()}</div><div class="modal-f"><button class="btn" data-act="close">Cancel</button><button class="btn" data-act="save" data-m="invoice" data-draft="1">Save as draft</button><button class="btn" data-act="save" data-m="invoice">Create and mark as sent</button><button class="btn primary" data-act="save" data-m="invoice" data-dl="1">${ic('download')}Create and download invoice</button></div></div></div>`;
   if (kind==='member') return `<div class="scrim center" data-act="close"><div class="modal wide" role="dialog" aria-label="${id?'Edit person':'Add person'}" data-stop><div class="drawer-h"><div style="flex:1"><div class="eyebrow">People and access</div><h2>${id?'Edit '+esc(UU(id).name):'Add person'}</h2></div><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div><div class="drawer-b">${memberForm(id)}</div><div class="modal-f"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="membersave" data-id="${id||''}">${id?'Save changes':'Add person'}</button></div></div></div>`;
+  if (kind==='approve'){ const r=REQUESTS.find(x=>x.email===id); if (!r) return ''; return `<div class="scrim center" data-act="close"><div class="modal wide" role="dialog" aria-label="Approve sign-up" data-stop><div class="drawer-h"><div style="flex:1"><div class="eyebrow">Sign-up request</div><h2>Approve ${esc(r.name||r.email)}</h2></div><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div><div class="drawer-b"><p class="demo-note" style="margin:0">Choose their title and access. Honorariums stay hidden unless you tick the box.</p>${memberForm(null, r)}</div><div class="modal-f"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="membersave" data-id="" data-req="${esc(r.email)}">Approve</button></div></div></div>`; }
   if (kind==='memberdel') return `<div class="scrim center" data-act="close"><div class="modal" role="dialog" aria-label="Remove person" data-stop><div class="drawer-h"><h2>Remove ${esc(UU(id).name)}?</h2><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div><div class="drawer-b"><p style="margin:0">They will lose all access to Optimus straight away. Their past tasks, sessions and activity stay on record.</p></div><div class="modal-f"><button class="btn" data-act="close">Cancel</button><button class="btn primary" style="background:var(--bad);border-color:var(--bad)" data-act="memberdel" data-id="${id}">Remove</button></div></div></div>`;
   if (kind==='cohortadd') return `<div class="scrim center" data-act="close"><div class="modal wide" role="dialog" aria-label="Add cohort" data-stop><div class="drawer-h"><div style="flex:1"><div class="eyebrow">Cohorts</div><h2>Add cohort</h2></div><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div><div class="drawer-b">${cohortForm()}</div><div class="modal-f"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="save" data-m="cohortadd">Add cohort</button></div></div></div>`;
   if (kind==='facform') return `<div class="scrim center" data-act="close"><div class="modal wide" role="dialog" aria-label="${id?'Edit faculty':'Add faculty'}" data-stop><div class="drawer-h"><div style="flex:1"><div class="eyebrow">Faculty directory</div><h2>${id?'Edit '+esc(FACULTY[id].name):'Add faculty'}</h2></div><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div><div class="drawer-b">${facForm(id)}</div><div class="modal-f"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="save" data-m="facform" data-id="${id||''}">${id?'Save changes':'Add to directory'}</button></div></div></div>`;
@@ -1656,6 +1689,7 @@ root.addEventListener('click', e=>{
     case 'paytab': S.payTab=el.dataset.v; render(); break;
     case 'membersave': memberSave(el.dataset.id||null, el); break;
     case 'memberdel': memberRemove(el.dataset.id, el); break;
+    case 'reqdecline': reqDecline(el.dataset.id, el).then(render); break;
     case 'admintab': S.adminTab=el.dataset.v; render(); break;
     case 'toast': toast(el.dataset.t); break;
     case 'notif': S.notif=!S.notif; render(); break;

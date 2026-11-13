@@ -376,3 +376,5 @@ h1[tabindex="-1"]:focus{outline:none}
 .att-A input:checked + span{background:var(--bad);border-color:var(--bad);color:var(--surface)}
 .att-E input:checked + span{background:var(--ink-3);border-color:var(--ink-3);color:var(--surface)}
 .att-opt input:checked + span::before{content:"✓ "}
+.stu-one{border:1px solid var(--line);border-radius:10px;padding:10px 12px 12px;margin:0;display:grid;gap:10px;min-width:0}
+.stu-one legend{padding:0 4px;font-size:14px}

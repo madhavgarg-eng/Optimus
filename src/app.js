@@ -1045,7 +1045,7 @@ function payTag(v){ const m={Paid:'t-good',Deducted:'t-good',Received:'t-info',P
 function viewStudents(){
   const list = visibleStudents().slice().sort((a,b)=>(a.last||'').localeCompare(b.last||''));
   const done = list.filter(s=>s.last).length;
-  return `<div class="page-head"><div><h1>Students</h1><p>A one-to-one with every learner each month, as Rajiv's email asks. KPI 4 scores the quarter's coverage. Learners not yet met in October are listed first.</p>${kpiFeeds([4,12])}</div><button class="btn primary" data-act="modal" data-m="oneone">${ic('chat')}Log a 1:1</button></div>
+  return `<div class="page-head"><div><h1>Students</h1><p>A one-to-one with every learner each month, as Rajiv's email asks. KPI 4 scores the quarter's coverage. Learners not yet met in October are listed first.</p>${kpiFeeds([4,12])}</div><div class="toolbar">${markableCohorts().length?`<button class="btn" data-act="stuadd" data-id="">${ic('plus')}Add students</button>`:''}<button class="btn primary" data-act="modal" data-m="oneone">${ic('chat')}Log a 1:1</button></div></div>
   <div class="grid g3">
     <div class="card stat"><span class="lbl">October 1:1s done</span><span class="val num">${done} / ${list.length}</span><div class="bar"><i style="width:${Math.round(done/list.length*100)}%"></i></div></div>
     <div class="card stat alert"><span class="lbl">Still to meet</span><span class="val num">${list.length-done}</span><span class="sub">Due by 31 Oct</span></div>
@@ -1516,8 +1516,8 @@ function viewCohort(c){
       <dt>Programme Manager</dt><dd>${who(c.pm)}</dd><dt>Students</dt><dd class="num">${c.size}</dd><dt>Sessions held</dt><dd class="num">${c.sess.length}</dd><dt>Assignments set</dt><dd class="num">${c.asg.length}</dd></dl></div></div>
     <div class="grid" style="align-content:start"><div class="card"><div class="card-h"><h2 class="h3">Key dates</h2></div><div class="list">${c.keydates.map(([l,d])=>`<div class="item"><div class="main-t"><b>${esc(l)}</b></div><span class="num" style="color:var(--ink-2)">${fmt(d)} ${D(d).getFullYear()}</span></div>`).join('')}</div></div>
     <div class="card"><div class="card-h"><h2 class="h3">Faculty roster</h2></div><div class="list">${c.faculty.map(f=>`<div class="item"><div class="main-t"><b>${esc(FACULTY[f].name)}</b><div class="meta">${esc(FACULTY[f].exp)}</div></div></div>`).join('')}</div></div></div></div>`;
-  if (tab==='students') body = `<div class="card"><div class="tbl-wrap"><table><thead><tr><th>Student</th><th>Attendance</th><th class="r">Submitted</th><th class="r">Avg score</th><th>Last 1:1</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>
-    ${c.students.slice().sort((a,b)=>(a.att??101)-(b.att??101)).map(s=>{const sub=s.subs.filter(x=>x.st!=='Missing').length;return `<tr class="click" data-act="student" data-id="${s.id}"><td><b style="font-weight:600">${esc(s.name)}</b><div class="mono" style="color:var(--ink-3)">${s.id}</div></td><td>${s.att==null?'<span class="demo-note">Starts '+fmt(c.start)+'</span>':`<div style="display:flex;align-items:center;gap:8px"><div class="bar" style="width:90px"><i style="width:${s.att}%;background:${pctCol(s.att)}"></i></div><span class="num">${s.att}%</span></div>`}</td><td class="r num">${s.subs.length?`${sub} / ${s.subs.length}`:'—'}</td><td class="r num">${s.avg==null?'—':s.avg+'%'}</td><td class="num">${s.last?fmt(s.last):c.status==='Running'?'<span class="tag t-warn">Pending</span>':'—'}</td><td>${s.att!=null&&s.att<75?'<span class="tag t-bad">At risk</span>':''}</td></tr>`}).join('')}
+  if (tab==='students') body = !c.students.length ? `<div class="card"><div class="empty">No students in ${esc(c.code)} yet.${canMarkAtt(c)?`<div style="margin-top:12px"><button class="btn primary" data-act="stuadd" data-id="${esc(c.code)}">${ic('plus')}Add students</button></div>`:''}</div></div>` : `<div class="card"><div class="card-h"><h2 class="h3">${c.students.length} student${c.students.length===1?'':'s'}</h2>${canMarkAtt(c)?`<button class="btn sm primary" data-act="stuadd" data-id="${esc(c.code)}">${ic('plus')}Add students</button>`:''}</div><div class="tbl-wrap"><table><thead><tr><th>Student</th><th>Attendance</th><th class="r">Submitted</th><th class="r">Avg score</th><th>Last 1:1</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>
+    ${c.students.slice().sort((a,b)=>(a.att??101)-(b.att??101)).map(s=>{const sub=s.subs.filter(x=>x.st!=='Missing').length;return `<tr class="click" data-act="student" data-id="${s.id}"><td><b style="font-weight:600">${esc(s.name)}</b><div class="mono" style="color:var(--ink-3)">${s.id}</div></td><td>${s.att==null?'<span class="demo-note">'+(c.start>TODAY_ISO?'Starts '+fmt(c.start):'Not marked yet')+'</span>':`<div style="display:flex;align-items:center;gap:8px"><div class="bar" style="width:90px"><i style="width:${s.att}%;background:${pctCol(s.att)}"></i></div><span class="num">${s.att}%</span></div>`}</td><td class="r num">${s.subs.length?`${sub} / ${s.subs.length}`:'—'}</td><td class="r num">${s.avg==null?'—':s.avg+'%'}</td><td class="num">${s.last?fmt(s.last):c.status==='Running'?'<span class="tag t-warn">Pending</span>':'—'}</td><td>${s.att!=null&&s.att<75?'<span class="tag t-bad">At risk</span>':''}</td></tr>`}).join('')}
     </tbody></table></div></div>`;
   if (tab==='assignments') body = c.asg.length? `<div class="card"><div class="card-h"><h2 class="h3">Assignments</h2><button class="btn sm primary" data-act="toast" data-t="Assignment form opens here">${ic('plus')}New assignment</button></div><div class="tbl-wrap"><table><thead><tr><th>Assignment</th><th>Due</th><th class="r">On time</th><th class="r">Late</th><th class="r">Missing</th><th class="r">Avg score</th></tr></thead><tbody>
     ${c.asg.map((a,i)=>{const subs=c.students.map(s=>s.subs[i]);const on=subs.filter(x=>x.st==='On time').length,la=subs.filter(x=>x.st==='Late').length,mi=subs.filter(x=>x.st==='Missing').length;const sc=subs.filter(x=>x.score!=null);const av2=sc.length?(sc.reduce((a,x)=>a+x.score,0)/sc.length).toFixed(1):'—';return `<tr><td><b style="font-weight:600">${esc(a.title)}</b><div class="demo-note">Assignment ${a.n} · out of ${a.max}</div></td><td class="num">${fmt(a.due)}</td><td class="r num">${on}</td><td class="r num">${la}</td><td class="r num">${mi?`<span class="tag t-bad">${mi}</span>`:'0'}</td><td class="r num"><b>${av2}</b> / ${a.max}</td></tr>`}).join('')}
@@ -1535,7 +1535,7 @@ function viewCohort(c){
     <div class="grid g21"><div class="card"><div class="card-h"><h2 class="h3">Attendance per session</h2><small>Share of students present or late</small></div><div class="card-b">${trendChart(c)}</div></div>
       <div class="card"><div class="card-h"><h2 class="h3">Score distribution</h2><small>Students by average score</small></div><div class="card-b">${histChart(c)}</div></div></div>
     <div class="card"><div class="card-h"><h2 class="h3">Students to watch</h2><small>Attendance below 75% or 2+ missing assignments</small></div><div class="list">${c.students.filter(s=>s.att<75||s.subs.filter(x=>x.st==='Missing').length>=2).map(s=>`<div class="item click" data-act="student" data-id="${s.id}" style="cursor:pointer"><span class="sev" style="background:var(--bad)"></span><div class="main-t"><b>${esc(s.name)}</b><div class="meta"><span>Attendance ${s.att}%</span><span>${s.subs.filter(x=>x.st==='Missing').length} missing</span><span>Last 1:1 ${s.last?fmt(s.last):'not this month'}</span></div></div><span class="btn sm">View</span></div>`).join('')||'<div class="empty">No students at risk</div>'}</div></div>` : `<div class="card"><div class="empty">Analytics appear once ${c.code} starts.</div></div>`;
-  return `<div class="page-head"><div><button class="btn ghost sm" data-act="cback" style="padding-left:0">← All cohorts</button><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><h1>${c.code}</h1>${statusTagC(c)}</div><p>${c.prog} · ${c.size} students · ${esc(UU(c.pm).name)}</p>${c.status==='Running'?kpiFeeds([4,7,8,12],'This cohort feeds'):''}</div>${db.demo?`<button class="btn" data-act="upload">${ic('upload')}Bulk upload</button>`:canMarkAtt(c)?`<button class="btn" data-act="attmark" data-id="${esc(c.code)}">${ic('check')}Mark attendance</button>`:''}</div>
+  return `<div class="page-head"><div><button class="btn ghost sm" data-act="cback" style="padding-left:0">← All cohorts</button><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><h1>${c.code}</h1>${statusTagC(c)}</div><p>${c.prog} · ${c.size} students · ${esc(UU(c.pm).name)}</p>${c.status==='Running'?kpiFeeds([4,7,8,12],'This cohort feeds'):''}</div>${db.demo?`<button class="btn" data-act="upload">${ic('upload')}Bulk upload</button>`:canMarkAtt(c)?`<div class="toolbar"><button class="btn" data-act="stuadd" data-id="${esc(c.code)}">${ic('plus')}Add students</button><button class="btn" data-act="attmark" data-id="${esc(c.code)}">${ic('check')}Mark attendance</button></div>`:''}</div>
   <div class="seg">${tabs.map(([k,l])=>`<button class="${tab===k?'on':''}" data-act="ctab" data-v="${k}">${l}</button>`).join('')}</div>${body}`;
 }
 
@@ -1626,25 +1626,88 @@ function cohortForm(){
     <span class="sc-err" id="co-err"></span>
   </div>`;
 }
+// Reads an Excel/CSV list of students: a Name column, and optional Email, Phone and Company columns.
+async function readStudentFile(file){
+  const X = await import('xlsx'), wb = X.read(await file.arrayBuffer(), {type:'array', raw:/\.csv$/i.test(file.name)});
+  const raw = X.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1, defval:'', blankrows:false});
+  if (!raw.length) throw new Error('The file is empty.');
+  const head = raw[0].map(h=>String(h).trim().toLowerCase());
+  const col = (...names) => head.findIndex(h => names.some(n => h===n || h.includes(n)));
+  let iName = col('student name','full name','name');
+  const hasHeader = iName >= 0 || head.some(h=>/email|phone|company|mobile/.test(h));
+  if (iName < 0) iName = 0;
+  const iEmail = col('email','e-mail','mail'), iPhone = col('phone','mobile','contact'), iCo = col('company','organisation','organization','business');
+  const body = hasHeader ? raw.slice(1) : raw, skipped = [], list = [];
+  body.forEach((r,i)=>{ const name = String(r[iName]||'').trim(); if (!name){ if (r.some(x=>String(x).trim())) skipped.push(i+(hasHeader?2:1)); return; }
+    list.push({name, email: iEmail>=0?String(r[iEmail]||'').trim():'', phone: iPhone>=0?String(r[iPhone]||'').trim():'', company: iCo>=0?String(r[iCo]||'').trim():''}); });
+  if (!list.length) throw new Error('No student names found. Put the names in a column called "Name".');
+  return {list, skipped};
+}
+
+/* ---------------- add students to an existing cohort: one by hand, or a list from a file ---------------- */
+let STU = null; // {code, rows:[{name,email,phone,company,st:'new'|'dup'}], note}
+function stuOpen(code){ const list = markableCohorts(); if (!list.length){ toast('Add a cohort first'); return; } STU = {code: list.some(c=>c.code===code) ? code : (S.cohort && list.some(c=>c.code===S.cohort) ? S.cohort : list[0].code), rows:[], note:''}; S.modal = ['stuadd','']; }
+function stuCheck(){ const c = COHORTS.find(x=>x.code===STU.code); const em = new Set(c.students.map(s=>(s.email||'').toLowerCase()).filter(Boolean)), nm = new Set(c.students.map(s=>s.name.toLowerCase()));
+  STU.rows.forEach(r=>{ const e=(r.email||'').toLowerCase(), n=r.name.toLowerCase(); if ((e && em.has(e)) || (!e && nm.has(n))) r.st='dup'; else { r.st='new'; if (e) em.add(e); nm.add(n); } }); }
+function stuForm(){
+  const list = markableCohorts(), R = STU.rows, nNew = R.filter(r=>r.st==='new').length;
+  return `<div class="grid stuf" style="gap:14px">
+    <div class="field"><label for="su-c">Cohort</label><select id="su-c">${list.map(x=>`<option value="${esc(x.code)}" ${x.code===STU.code?'selected':''}>${esc(x.code)} · ${esc(x.prog)} · ${x.students.length} student${x.students.length===1?'':'s'}</option>`).join('')}</select></div>
+    <fieldset class="stu-one"><legend><b>Add one student</b></legend>
+      <div class="grid g2"><div class="field"><label for="su-n">Full name</label><input id="su-n" autocomplete="off"></div><div class="field"><label for="su-e">Email <span style="font-weight:400;color:var(--ink-3)">(optional)</span></label><input id="su-e" type="email" autocomplete="off"></div></div>
+      <div class="grid g2"><div class="field"><label for="su-p">Phone <span style="font-weight:400;color:var(--ink-3)">(optional)</span></label><input id="su-p" autocomplete="off"></div><div class="field"><label for="su-co">Company <span style="font-weight:400;color:var(--ink-3)">(optional)</span></label><input id="su-co" autocomplete="off"></div></div>
+      <div><button class="btn sm" type="button" data-act="stuone">${ic('plus')}Add to the list below</button></div>
+    </fieldset>
+    <div class="att-up"><div><b>Or upload a list</b><span class="demo-note" style="display:block">Excel or CSV with a Name column. Email, Phone and Company are optional.</span></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><label class="btn sm" for="su-file">${ic('upload')}Choose file</label><input id="su-file" type="file" accept=".xlsx,.xls,.csv" class="sr-only"><button class="btn sm" type="button" data-act="cotemplate">${ic('download')}Template</button></div></div>
+    <div id="su-note" tabindex="-1" role="status" class="demo-note" style="margin:0">${esc(STU.note)}</div>
+    ${R.length?`<div class="card" style="box-shadow:none"><div class="tbl-wrap"><table><caption class="sr-only">Students to add</caption><thead><tr><th scope="col">Name</th><th scope="col">Email</th><th scope="col">Phone</th><th scope="col">Company</th><th scope="col">Result</th><th><span class="sr-only">Remove</span></th></tr></thead><tbody>${R.map((r,i)=>`<tr><td>${esc(r.name)}</td><td style="font-size:13px">${esc(r.email||'—')}</td><td style="font-size:13px">${esc(r.phone||'—')}</td><td style="font-size:13px">${esc(r.company||'—')}</td><td>${r.st==='new'?'<span class="tag t-good">Will be added</span>':'<span class="tag">Already in cohort, skipped</span>'}</td><td class="r"><button class="btn sm ghost" type="button" data-act="sturm" data-n="${i}" aria-label="Remove ${esc(r.name)} from the list">${ic('x')}</button></td></tr>`).join('')}</tbody></table></div></div>`:''}
+    <span class="sc-err" id="su-err"></span>
+  </div>`;
+}
+async function stuParse(file){
+  STU.note = `Reading ${file.name}…`;
+  try { const {list, skipped} = await readStudentFile(file); STU.rows.push(...list); stuCheck();
+    const n = STU.rows.filter(r=>r.st==='new').length, d = STU.rows.filter(r=>r.st==='dup').length;
+    STU.note = `${file.name}: ${list.length} student${list.length===1?'':'s'} read. The list now has ${n} to add` + (d?` and ${d} already in the cohort`:'') + (skipped.length?`. Skipped ${skipped.length} row${skipped.length===1?'':'s'} without a name`:'') + '. Check the list, then save.';
+  } catch(e){ STU.note = `Could not read ${file.name}. ${e.message||''}`; }
+  render(); const n = document.getElementById('su-note'); if (n) n.focus();
+}
+function stuOne(){
+  const g = id=>document.getElementById(id), name = g('su-n').value.trim(), email = g('su-e').value.trim();
+  if (!name){ g('su-err').textContent = 'Add the student\'s full name.'; g('su-n').focus(); return; }
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ g('su-err').textContent = 'That email does not look right.'; g('su-e').focus(); return; }
+  STU.rows.push({name, email, phone:g('su-p').value.trim(), company:g('su-co').value.trim()}); stuCheck();
+  const r = STU.rows[STU.rows.length-1];
+  STU.note = r.st==='new' ? `${name} is on the list. Add another, or save.` : `${name} is already in this cohort, so they will be skipped.`;
+  render(); const x = document.getElementById('su-n'); if (x) x.focus(); announce(STU.note);
+}
+function stuSave(){
+  const c = COHORTS.find(x=>x.code===STU.code), add = STU.rows.filter(r=>r.st==='new'), err = document.getElementById('su-err');
+  const g = id=>document.getElementById(id);
+  if (!add.length && g('su-n') && g('su-n').value.trim()){ stuOne(); return null; } // typed one name and pressed save
+  if (!add.length){ err.textContent = STU.rows.length ? 'Everyone on the list is already in this cohort.' : 'Add a student by hand, or upload a list.'; return null; }
+  let next = c.students.reduce((m,s)=>{ const k = +String(s.id).split('-').pop(); return isFinite(k) && k>m ? k : m; }, 0);
+  add.forEach(r=>{ next++; c.students.push({id: c.code+'-'+String(next).padStart(3,'0'), name:r.name, email:r.email, phone:r.phone, company:r.company, cohort:c.code, pm:c.pm, att:null, attRec:c.sess.map(()=>null), subs:c.asg.map(()=>({st:'Missing',score:null})), avg:null, last:null, ones:[]}); });
+  c.size = c.students.length;
+  STUDENTS = COHORTS.filter(x=>x.status==='Running').flatMap(x=>x.students||[]);
+  AUDIT.unshift([nowStamp(), S.user, 'added students', `${c.code} · ${add.length} student${add.length===1?'':'s'}`]);
+  STU = null;
+  return {c, n:add.length};
+}
+document.addEventListener('change', e=>{
+  if (!STU || !e.target.closest || !e.target.closest('.stuf')) return;
+  if (e.target.id==='su-c'){ STU.code = e.target.value; stuCheck(); render(); const x=document.getElementById('su-c'); if (x) x.focus(); }
+  if (e.target.id==='su-file' && e.target.files[0]) stuParse(e.target.files[0]);
+});
+document.addEventListener('keydown', e=>{ if (STU && e.key==='Enter' && e.target.closest && e.target.closest('.stu-one') && e.target.tagName==='INPUT'){ e.preventDefault(); stuOne(); } });
+
 async function cohortParse(file){
   const g = id=>document.getElementById(id), prev = g('co-prev');
   coStudents = null; coFileName = file.name;
   g('co-fname').textContent = file.name + ' · reading…';
   try {
-    const X = await import('xlsx'), wb = X.read(await file.arrayBuffer(), {type:'array'});
-    const raw = X.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1, defval:'', blankrows:false});
-    if (!raw.length) throw new Error('The file is empty.');
-    const head = raw[0].map(h=>String(h).trim().toLowerCase());
-    const col = (...names) => head.findIndex(h => names.some(n => h===n || h.includes(n)));
-    let iName = col('student name','full name','name');
-    const hasHeader = iName >= 0 || head.some(h=>/email|phone|company|mobile/.test(h));
-    if (iName < 0) iName = 0;
-    const iEmail = col('email','e-mail','mail'), iPhone = col('phone','mobile','contact'), iCo = col('company','organisation','organization','business');
-    const body = hasHeader ? raw.slice(1) : raw, skipped = [];
-    const list = [];
-    body.forEach((r,i)=>{ const name = String(r[iName]||'').trim(); if (!name){ if (r.some(x=>String(x).trim())) skipped.push(i+(hasHeader?2:1)); return; }
-      list.push({name, email: iEmail>=0?String(r[iEmail]||'').trim():'', phone: iPhone>=0?String(r[iPhone]||'').trim():'', company: iCo>=0?String(r[iCo]||'').trim():''}); });
-    if (!list.length) throw new Error('No student names found. Put the names in a column called "Name".');
+    const {list, skipped} = await readStudentFile(file);
     coStudents = list;
     g('co-fname').textContent = file.name + ' · ' + list.length + ' student' + (list.length===1?'':'s');
     g('co-drop').style.borderColor = 'var(--good)';
@@ -1772,6 +1835,7 @@ function modal(kind, id){
   if (kind==='approve'){ const r=REQUESTS.find(x=>x.email===id); if (!r) return ''; return `<div class="scrim center" data-act="close"><div class="modal wide" role="dialog" aria-label="Approve sign-up" data-stop><div class="drawer-h"><div style="flex:1"><div class="eyebrow">Sign-up request</div><h2>Approve ${esc(r.name||r.email)}</h2></div><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div><div class="drawer-b"><p class="demo-note" style="margin:0">Choose their title and access. Honorariums stay hidden unless you tick the box.</p>${memberForm(null, r)}</div><div class="modal-f"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="membersave" data-id="" data-req="${esc(r.email)}">Approve</button></div></div></div>`; }
   if (kind==='attmark'){ const c=COHORTS.find(x=>x.code===id); if (!c||!ATT) return ''; return `<div class="scrim center" data-act="close"><div class="modal wide" role="dialog" aria-label="Attendance for ${esc(c.code)}" data-stop><div class="drawer-h"><div style="flex:1"><div class="eyebrow">${esc(c.prog)} · ${esc(c.code)}</div><h2>Mark attendance</h2></div><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div><div class="drawer-b">${attForm(id)}</div><div class="modal-f"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="save" data-m="attmark">Save attendance</button></div></div></div>`; }
   if (kind==='pastsess'){ if (!PSU) return ''; return `<div class="scrim center" data-act="close"><div class="modal wide" role="dialog" aria-label="Upload past sessions" data-stop><div class="drawer-h"><div style="flex:1"><div class="eyebrow">Sessions</div><h2>Upload past sessions</h2></div><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div><div class="drawer-b">${psForm()}</div><div class="modal-f"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="save" data-m="pastsess">Add sessions</button></div></div></div>`; }
+  if (kind==='stuadd'){ if (!STU) return ''; return `<div class="scrim center" data-act="close"><div class="modal wide" role="dialog" aria-label="Add students" data-stop><div class="drawer-h"><div style="flex:1"><div class="eyebrow">Students</div><h2>Add students</h2></div><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div><div class="drawer-b">${stuForm()}</div><div class="modal-f"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="save" data-m="stuadd">Save students</button></div></div></div>`; }
   if (kind==='memberdel') return `<div class="scrim center" data-act="close"><div class="modal" role="dialog" aria-label="Remove person" data-stop><div class="drawer-h"><h2>Remove ${esc(UU(id).name)}?</h2><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div><div class="drawer-b"><p style="margin:0">They will lose all access to Optimus straight away. Their past tasks, sessions and activity stay on record.</p></div><div class="modal-f"><button class="btn" data-act="close">Cancel</button><button class="btn primary" style="background:var(--bad);border-color:var(--bad)" data-act="memberdel" data-id="${id}">Remove</button></div></div></div>`;
   if (kind==='cohortadd') return `<div class="scrim center" data-act="close"><div class="modal wide" role="dialog" aria-label="Add cohort" data-stop><div class="drawer-h"><div style="flex:1"><div class="eyebrow">Cohorts</div><h2>Add cohort</h2></div><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div><div class="drawer-b">${cohortForm()}</div><div class="modal-f"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="save" data-m="cohortadd">Add cohort</button></div></div></div>`;
   if (kind==='facform') return `<div class="scrim center" data-act="close"><div class="modal wide" role="dialog" aria-label="${id?'Edit faculty':'Add faculty'}" data-stop><div class="drawer-h"><div style="flex:1"><div class="eyebrow">Faculty directory</div><h2>${id?'Edit '+esc(FACULTY[id].name):'Add faculty'}</h2></div><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div><div class="drawer-b">${facForm(id)}</div><div class="modal-f"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="save" data-m="facform" data-id="${id||''}">${id?'Save changes':'Add to directory'}</button></div></div></div>`;
@@ -1908,6 +1972,7 @@ root.addEventListener('click', e=>{
     case 'save': { const m=el.dataset.m; let msg='Saved';
       if (m==='sched'){ const d=schedRead(), err=schedCheck(d); if (err){ schedPreview(); break; } const id=newId('S-', 320+SESSIONS.length-9); SESSIONS.push({id,date:d.date,time:d.time,prog:d.prog,cohort:d.cohort,title:d.title,mode:d.mode,venue:d.mode==='Online'?'Zoom':d.venue,zoom:d.mode==='Offline'?null:d.zoom,cal:true,fac:d.fac,pm:isMgr()?((COHORTS.find(c=>c.code===d.cohort)||{}).pm||S.user):S.user,notes:false,check:[d.fac?1:0,1,0,1,0],pay:{inv:'Not due',paid:'Not due',tds:'Not due'}}); S.sessTab='upcoming'; msg=`${d.title} scheduled · Google Calendar invite sent to ${d.inv} guests with the ${d.mode==='Offline'?'venue':'Zoom link'}`; }
       if (m==='invoice'){ S.invTried=true; const v=invRead(), err=invCheck(v); if (err){ invPreview(); break; } v.items=v.items.filter(i=>i.d||i.r); v.id=newId('IV-', 49+INVOICES.length-8); invNext[v.type]++; v.status=el.dataset.draft?'draft':'sent'; INVOICES.unshift(v); S.invTried=false; S.view='invoices'; S.invF='all'; S.drawer=['inv',v.id]; msg=`${v.no} ${v.status==='draft'?'saved as a draft':'created for '+rs(invCalc(v).total)}`; if (el.dataset.dl){ S.modal=null; render(); invPdf(v); break; } }
+      if (m==='stuadd'){ const r=stuSave(); if (!r) break; S.view='cohorts'; S.cohort=r.c.code; S.ctab='students'; msg=`${r.n} student${r.n===1?'':'s'} added to ${r.c.code}`; }
       if (m==='pastsess'){ const r=psSave(); if (!r) break; msg=`${r.n} past session${r.n===1?'':'s'} added to ${r.c.code}. They now show when you mark attendance.`; }
       if (m==='attmark'){ const r=attSave(); if (!r) break; msg=r; }
       if (m==='cohortadd'){ const c=cohortSave(); if (!c) break; S.view='cohorts'; S.cohort=c.code; S.ctab='profile'; msg=`${c.code} added with ${c.size} student${c.size===1?'':'s'}`; }
@@ -1935,6 +2000,9 @@ root.addEventListener('click', e=>{
     case 'memberdel': memberRemove(el.dataset.id, el); break;
     case 'attmark': attOpen(el.dataset.id); render(); break;
     case 'pastsess': psOpen(); render(); break;
+    case 'stuadd': stuOpen(el.dataset.id); render(); break;
+    case 'stuone': stuOne(); break;
+    case 'sturm': { const r = STU.rows.splice(+el.dataset.n,1)[0]; stuCheck(); STU.note = `${r.name} removed from the list.`; render(); announce(STU.note); const x=document.getElementById('su-n'); if (x) x.focus(); break; }
     case 'cohortatt': S.view='cohorts'; S.cohort=el.dataset.id; S.ctab='attendance'; render(); window.scrollTo(0,0); break;
     case 'pstpl': { const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob(['Session name,Date\nIntroduction to Family Business,12/10/2026\nSuccession Planning,26/10/2026\n'],{type:'text/csv'})); a.download='Optimus past sessions template.csv'; document.body.appendChild(a); a.click(); a.remove(); announce('Template downloaded. One row per session, with the session name and the date.'); break; }
     case 'attall': { const c=COHORTS.find(x=>x.code===ATT.code); c.students.forEach(st=>{ if (el.dataset.v) ATT.marks[st.id]=el.dataset.v; else delete ATT.marks[st.id]; }); render(); const b=document.querySelector(`[data-act="attall"][data-v="${el.dataset.v}"]`); if (b) b.focus(); announce(el.dataset.v?'Everyone marked present':'All marks cleared'); break; }

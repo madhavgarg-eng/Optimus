@@ -378,3 +378,6 @@ h1[tabindex="-1"]:focus{outline:none}
 .att-opt input:checked + span::before{content:"✓ "}
 .stu-one{border:1px solid var(--line);border-radius:10px;padding:10px 12px 12px;margin:0;display:grid;gap:10px;min-width:0}
 .stu-one legend{padding:0 4px;font-size:14px}
+.stu-search{max-width:520px;flex:1 1 320px}
+.stu-search input{border:0;background:none;outline:none;width:100%}
+.search:focus-within{outline:2px solid var(--accent);outline-offset:2px}

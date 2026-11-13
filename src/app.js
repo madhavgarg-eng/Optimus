@@ -1042,17 +1042,25 @@ function pastRecorded(){
 }
 function payTag(v){ const m={Paid:'t-good',Deducted:'t-good',Received:'t-info',Pending:'t-warn','Not deducted':'t-warn','Not due':''}; return `<span class="tag ${m[v]||''}">${v}</span>`; }
 
+// Student search: name, email, phone, company, student ID or cohort. Phone numbers match on digits alone, so +91 98100 00000 matches 9810000000.
+const stuMatch = (s, q) => { const t = q.trim().toLowerCase(); if (!t) return true; const d = t.replace(/\D/g,'');
+  return t.split(/\s+/).every(w => [s.name, s.email, s.company, s.id, s.cohort, s.phone].some(v => String(v||'').toLowerCase().includes(w))) || (d.length >= 4 && String(s.phone||'').replace(/\D/g,'').includes(d)); };
 function viewStudents(){
-  const list = visibleStudents().slice().sort((a,b)=>(a.last||'').localeCompare(b.last||''));
-  const done = list.filter(s=>s.last).length;
+  const all = visibleStudents().slice().sort((a,b)=>(a.last||'').localeCompare(b.last||''));
+  const done = all.filter(s=>s.last).length;
+  // searching also covers cohorts that have not started yet
+  const pool = S.sq ? (isMgr() ? COHORTS : COHORTS.filter(c=>c.pm===S.user)).flatMap(c=>c.students||[]) : all;
+  const list = pool.filter(s=>stuMatch(s, S.sq||''));
   return `<div class="page-head"><div><h1>Students</h1><p>A one-to-one with every learner each month, as Rajiv's email asks. KPI 4 scores the quarter's coverage. Learners not yet met in October are listed first.</p>${kpiFeeds([4,12])}</div><div class="toolbar">${markableCohorts().length?`<button class="btn" data-act="stuadd" data-id="">${ic('plus')}Add students</button>`:''}<button class="btn primary" data-act="modal" data-m="oneone">${ic('chat')}Log a 1:1</button></div></div>
   <div class="grid g3">
-    <div class="card stat"><span class="lbl">October 1:1s done</span><span class="val num">${done} / ${list.length}</span><div class="bar"><i style="width:${Math.round(done/list.length*100)}%"></i></div></div>
-    <div class="card stat alert"><span class="lbl">Still to meet</span><span class="val num">${list.length-done}</span><span class="sub">Due by 31 Oct</span></div>
-    <div class="card stat"><span class="lbl">Below 70% attendance</span><span class="val num">${list.filter(s=>s.att<70).length}</span><span class="sub">Flagged as at risk</span></div>
+    <div class="card stat"><span class="lbl">October 1:1s done</span><span class="val num">${done} / ${all.length}</span><div class="bar"><i style="width:${all.length?Math.round(done/all.length*100):0}%"></i></div></div>
+    <div class="card stat alert"><span class="lbl">Still to meet</span><span class="val num">${all.length-done}</span><span class="sub">Due by 31 Oct</span></div>
+    <div class="card stat"><span class="lbl">Below 70% attendance</span><span class="val num">${all.filter(s=>s.att!=null&&s.att<70).length}</span><span class="sub">Flagged as at risk</span></div>
   </div>
+  <div class="toolbar"><label class="search stu-search">${ic('search')}<span class="sr-only">Search students</span><input id="stu-q" type="search" placeholder="Search students by name, email, phone or company" value="${esc(S.sq||'')}" aria-describedby="stu-count" autocomplete="off"></label>${S.sq?`<button class="btn sm" data-act="stuqclear">Clear</button>`:''}<span id="stu-count" class="demo-note" aria-live="polite">${S.sq?`${list.length} match${list.length===1?'':'es'}`:`${all.length} student${all.length===1?'':'s'}`}</span></div>
   <div class="card"><div class="tbl-wrap"><table><thead><tr><th>Student</th><th>Cohort</th>${isMgr()?'<th>PM</th>':''}<th class="c">Aug</th><th class="c">Sep</th><th class="c">Oct</th><th>Attendance</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>
-  ${list.map(s=>`<tr><td><b style="font-weight:600">${esc(s.name)}</b></td><td>${esc(s.cohort)}</td>${isMgr()?`<td>${who(s.pm)}</td>`:''}${['2026-08','2026-09'].map(m=>{const o=s.ones.find(x=>x[0].startsWith(m));return `<td class="c num">${o?`<span class="tag t-good" title="${esc(o[1])}">${fmt(o[0])}</span>`:'<span class="tag t-bad">Missed</span>'}</td>`}).join('')}<td class="c num">${s.last?`<span class="tag t-good">${fmt(s.last)}</span>`:'<span class="tag t-warn">Pending</span>'}</td><td><div style="display:flex;align-items:center;gap:8px"><div class="bar" style="width:80px"><i style="width:${s.att}%;background:${s.att<70?'var(--bad)':s.att<85?'var(--warn)':'var(--good)'}"></i></div><span class="num">${s.att}%</span>${s.att<70?'<span class="tag t-bad">At risk</span>':''}</div></td><td class="r">${s.last?'':`<button class="btn sm" data-act="modal" data-m="oneone" data-id="${s.id}">Log 1:1</button>`}</td></tr>`).join('')}
+  ${list.length?'':`<tr><td colspan="${isMgr()?8:7}" class="empty">${S.sq?`No student matches “${esc(S.sq)}”. Search looks at name, email, phone, company, student ID and cohort.`:'No students yet. Add them from a cohort, or with Add students above.'}</td></tr>`}
+  ${list.map(s=>`<tr class="click" data-act="student" data-id="${esc(s.id)}"><td><b style="font-weight:600">${esc(s.name)}</b>${[s.email,s.phone,s.company].filter(Boolean).length?`<div style="font-size:12px;color:var(--ink-3)">${[s.email,s.phone,s.company].filter(Boolean).map(esc).join(' · ')}</div>`:''}</td><td>${esc(s.cohort)}</td>${isMgr()?`<td>${who(s.pm)}</td>`:''}${['2026-08','2026-09'].map(m=>{const o=s.ones.find(x=>x[0].startsWith(m));return `<td class="c num">${o?`<span class="tag t-good" title="${esc(o[1])}">${fmt(o[0])}</span>`:'<span class="tag t-bad">Missed</span>'}</td>`}).join('')}<td class="c num">${s.last?`<span class="tag t-good">${fmt(s.last)}</span>`:'<span class="tag t-warn">Pending</span>'}</td><td><div style="display:flex;align-items:center;gap:8px"><div class="bar" style="width:80px"><i style="width:${s.att||0}%;background:${pctCol(s.att)}"></i></div><span class="num">${pctTxt(s.att)}</span>${s.att!=null&&s.att<70?'<span class="tag t-bad">At risk</span>':''}</div></td><td class="r">${s.last?'':`<button class="btn sm" data-act="modal" data-m="oneone" data-id="${s.id}">Log 1:1</button>`}</td></tr>`).join('')}
   </tbody></table></div></div>`;
 }
 
@@ -1875,6 +1883,8 @@ function render(){
   if (S.modal && S.modal[0]==='invrecv') recvSum();
   if (q){ const el=document.getElementById('q'); el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
   a11yAfter(q ? null : prevKey, prevOverlay);
+  const sqEl = document.activeElement && document.activeElement.id==='stu-q' ? document.activeElement : null;
+  if (sqEl) sqEl.setSelectionRange(sqEl.value.length, sqEl.value.length);
 }
 
 /* ---------------- screen reader and keyboard support ----------------
@@ -2001,6 +2011,7 @@ root.addEventListener('click', e=>{
     case 'attmark': attOpen(el.dataset.id); render(); break;
     case 'pastsess': psOpen(); render(); break;
     case 'stuadd': stuOpen(el.dataset.id); render(); break;
+    case 'stuqclear': S.sq=''; render(); { const x=document.getElementById('stu-q'); if (x) x.focus(); } break;
     case 'stuone': stuOne(); break;
     case 'sturm': { const r = STU.rows.splice(+el.dataset.n,1)[0]; stuCheck(); STU.note = `${r.name} removed from the list.`; render(); announce(STU.note); const x=document.getElementById('su-n'); if (x) x.focus(); break; }
     case 'cohortatt': S.view='cohorts'; S.cohort=el.dataset.id; S.ctab='attendance'; render(); window.scrollTo(0,0); break;
@@ -2022,6 +2033,7 @@ root.addEventListener('change', e=>{
   if (e.target.id==='st-sel'){ const t=TASKS.find(x=>x.id===e.target.dataset.id); t.status=e.target.value; render(); toast('Status updated'); }
   if (e.target.matches('input[data-act="check"]')){ const s=SESSIONS.find(x=>x.id===e.target.dataset.id); s.check[+e.target.dataset.i]=e.target.checked?1:0; }
 });
+root.addEventListener('input', e=>{ if (e.target.id==='stu-q'){ S.sq = e.target.value; render(); return; } });
 root.addEventListener('input', e=>{ if (e.target.id==='q'){ S.q=e.target.value; if (S.view!=='tasks'){ S.view='tasks'; S.taskScope='all'; S.taskFilter='all'; } render(); } });
 document.addEventListener('keydown', e=>{ if (e.key==='Escape' && (S.drawer||S.modal||S.up)){ S.drawer=null; S.modal=null; S.up=null; render(); } });
 

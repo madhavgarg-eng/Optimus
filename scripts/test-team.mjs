@@ -1,9 +1,23 @@
+// Checks supabase/set-team.sql and who may change the team list.
 import { PGlite } from '@electric-sql/pglite';
 import fs from 'node:fs';
 const db = new PGlite();
-await db.exec(`create role anon; create role authenticated; create schema auth; create function auth.jwt() returns jsonb language sql stable as $$ select '{}'::jsonb $$;
+await db.exec(`create role anon; create role authenticated; create schema auth; create function auth.jwt() returns jsonb language sql stable as $$ select coalesce(nullif(current_setting('request.jwt.claims', true),''),'{}')::jsonb $$;
+grant usage on schema auth to authenticated; grant execute on function auth.jwt() to authenticated;
 create schema storage; create table storage.buckets(id text primary key, name text, public bool, file_size_limit bigint, allowed_mime_types text[]); create table storage.objects(id serial, bucket_id text, name text); alter table storage.objects enable row level security;`);
 await db.exec(fs.readFileSync(new URL('../supabase/schema.sql', import.meta.url), 'utf8'));
-await db.exec(`update team_members set email='neha.real@x.org' where key='neha'; update team_members set kind='head' where key='madhav'; insert into team_members(key,email,name,kind) values ('rajat','r@x','Rajat','head');`);
+await db.exec(`update team_members set email='neha@x.org' where key='neha'; update team_members set kind='head' where key='madhav'; insert into team_members(key,email,name,kind) values ('rajat','r@x','Rajat','head');`);
 const r = await db.exec(fs.readFileSync(new URL('../supabase/set-team.sql', import.meta.url), 'utf8'));
 console.table(r.at(-1).rows);
+const as = async (email, sql) => { await db.exec(`reset role; set request.jwt.claims = '${JSON.stringify({email})}'; set role authenticated;`);
+  try { const x = await db.query(sql); return x.affectedRows ?? x.rows.length; } catch (e) { return 'DENIED'; } finally { await db.exec('reset role'); } };
+const M='madhav.garg@mastersunion.org';
+console.log('owner adds pm      :', await as(M, `insert into team_members(key,email,name,kind) values ('aa','aa@x','AA','pm')`));
+console.log('owner adds head    :', await as(M, `insert into team_members(key,email,name,kind) values ('bb','bb@x','BB','head')`));
+console.log('owner edits pm     :', await as(M, `update team_members set title='Intern 2' where key='aa'`));
+console.log('owner promotes pm  :', await as(M, `update team_members set kind='head' where key='aa'`));
+console.log('owner edits neha   :', await as(M, `update team_members set title='x' where key='neha'`));
+console.log('owner removes neha :', await as(M, `delete from team_members where key='neha'`));
+console.log('owner removes pm   :', await as(M, `delete from team_members where key='aa'`));
+console.log('pm adds someone    :', await as('neha@x.org'.replace('neha','nobody'), `insert into team_members(key,email,name,kind) values ('cc','cc@x','CC','pm')`));
+console.log('head adds chair    :', await as('neha@x.org', `insert into team_members(key,email,name,kind) values ('dd','dd@x','DD','chair')`));

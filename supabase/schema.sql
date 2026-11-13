@@ -125,9 +125,20 @@ alter table public.audit_log    enable row level security;
 
 drop policy if exists tm_read  on public.team_members;
 drop policy if exists tm_write on public.team_members;
+drop policy if exists tm_admin_all on public.team_members;
+drop policy if exists tm_owner_add on public.team_members;
+drop policy if exists tm_owner_edit on public.team_members;
+drop policy if exists tm_owner_remove on public.team_members;
 create policy tm_read  on public.team_members for select to authenticated using (public.is_member());
-create policy tm_write on public.team_members for all    to authenticated
+create policy tm_admin_all on public.team_members for all to authenticated
   using (public.can_see_confidential()) with check (public.can_see_confidential());
+create policy tm_owner_add on public.team_members for insert to authenticated
+  with check (public.my_kind() = 'owner' and kind in ('owner','lead','pm'));
+create policy tm_owner_edit on public.team_members for update to authenticated
+  using (public.my_kind() = 'owner' and kind in ('owner','lead','pm'))
+  with check (public.my_kind() = 'owner' and kind in ('owner','lead','pm'));
+create policy tm_owner_remove on public.team_members for delete to authenticated
+  using (public.my_kind() = 'owner' and kind in ('owner','lead','pm'));
 
 drop policy if exists rec_read   on public.records;
 drop policy if exists rec_insert on public.records;

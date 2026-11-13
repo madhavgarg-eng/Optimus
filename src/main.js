@@ -1,5 +1,5 @@
 import './style.css';
-import { configured, sb, loadWorkspace, saveRows, addAudit, upload, fileUrl, fileBlob } from './db.js';
+import { configured, sb, loadWorkspace, saveRows, addAudit, upload, fileUrl, fileBlob, saveMember, removeMember } from './db.js';
 import { bootOptimus } from './app.js';
 
 const root = document.getElementById('root');
@@ -35,13 +35,81 @@ function loginForm(err = '') {
       <span class="sc-err" id="lerr">${esc(err)}</span>
       <button class="btn primary" type="submit" style="justify-content:center;padding:10px">Sign in</button>
     </form>
-    <p class="demo-note">No account yet, or forgot your password? Ask your Optimus admin to add or reset you.</p>`);
+    <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap"><button class="btn ghost sm" style="padding-left:0" id="go-setup" type="button">First time here? Set up your account</button><button class="btn ghost sm" style="padding-right:0" id="go-forgot" type="button">Forgot password?</button></div>`);
+  document.getElementById('go-setup').onclick = () => setupForm();
+  document.getElementById('go-forgot').onclick = () => forgotForm();
   document.getElementById('lf').onsubmit = async e => {
     e.preventDefault();
     const btn = e.target.querySelector('button'); btn.disabled = true; btn.textContent = 'Signing in…';
     const { error } = await sb.auth.signInWithPassword({ email: document.getElementById('le').value.trim(), password: document.getElementById('lp').value });
     if (error) loginForm(error.message === 'Invalid login credentials' ? 'That email and password do not match.' : error.message);
     else start();
+  };
+}
+
+const emailOk = e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
+function setupForm(err = '') {
+  screen(`<div><div class="eyebrow">Optimus</div><h2 style="margin-top:6px">Set up your account</h2></div>
+    <p style="color:var(--ink-2);margin:0">Use the work email your admin added to Optimus, and choose a password.</p>
+    <form id="sf" style="display:flex;flex-direction:column;gap:12px">
+      <div class="field"><label for="se">Work email</label><input id="se" type="email" autocomplete="username" required></div>
+      <div class="field"><label for="sp">New password (at least 8 characters)</label><input id="sp" type="password" autocomplete="new-password" minlength="8" required></div>
+      <div class="field"><label for="sp2">Repeat password</label><input id="sp2" type="password" autocomplete="new-password" required></div>
+      <span class="sc-err">${esc(err)}</span>
+      <button class="btn primary" type="submit" style="justify-content:center;padding:10px">Create account</button>
+    </form>
+    <button class="btn ghost sm" style="align-self:flex-start;padding-left:0" id="back" type="button">Back to sign in</button>`);
+  document.getElementById('back').onclick = () => loginForm();
+  document.getElementById('sf').onsubmit = async e => {
+    e.preventDefault();
+    const email = document.getElementById('se').value.trim().toLowerCase(), p1 = document.getElementById('sp').value, p2 = document.getElementById('sp2').value;
+    if (!emailOk(email)) return setupForm('Enter a valid email.');
+    if (p1.length < 8) return setupForm('Use at least 8 characters.');
+    if (p1 !== p2) return setupForm('The two passwords do not match.');
+    const btn = e.target.querySelector('button[type=submit]'); btn.disabled = true; btn.textContent = 'Creating…';
+    const { data, error } = await sb.auth.signUp({ email, password: p1, options: { emailRedirectTo: location.origin } });
+    if (error) return setupForm(/signups not allowed|disabled/i.test(error.message) ? 'Account set-up is switched off. Ask your admin to turn on sign-ups in Supabase.' : error.message);
+    if (data.session) return start();
+    message('Check your email', `We sent a confirmation link to <b>${esc(email)}</b>. Click it, then sign in with your new password. If nothing arrives in a few minutes, check spam or ask your admin.`, false);
+    root.querySelector('.login-card').insertAdjacentHTML('beforeend', '<button class="btn" id="bk" style="align-self:flex-start">Back to sign in</button>');
+    document.getElementById('bk').onclick = () => loginForm();
+  };
+}
+function forgotForm(err = '') {
+  screen(`<div><div class="eyebrow">Optimus</div><h2 style="margin-top:6px">Reset your password</h2></div>
+    <form id="ff" style="display:flex;flex-direction:column;gap:12px">
+      <div class="field"><label for="fe">Work email</label><input id="fe" type="email" autocomplete="username" required></div>
+      <span class="sc-err">${esc(err)}</span>
+      <button class="btn primary" type="submit" style="justify-content:center;padding:10px">Send reset link</button>
+    </form>
+    <button class="btn ghost sm" style="align-self:flex-start;padding-left:0" id="back" type="button">Back to sign in</button>`);
+  document.getElementById('back').onclick = () => loginForm();
+  document.getElementById('ff').onsubmit = async e => {
+    e.preventDefault();
+    const email = document.getElementById('fe').value.trim();
+    if (!emailOk(email)) return forgotForm('Enter a valid email.');
+    const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin });
+    if (error) return forgotForm(error.message);
+    message('Check your email', `If <b>${esc(email)}</b> has an Optimus account, a reset link is on its way. Open it on this device.`, false);
+  };
+}
+function newPasswordForm(err = '') {
+  screen(`<div><div class="eyebrow">Optimus</div><h2 style="margin-top:6px">Choose a new password</h2></div>
+    <form id="np" style="display:flex;flex-direction:column;gap:12px">
+      <div class="field"><label for="n1">New password (at least 8 characters)</label><input id="n1" type="password" autocomplete="new-password" required></div>
+      <div class="field"><label for="n2">Repeat password</label><input id="n2" type="password" autocomplete="new-password" required></div>
+      <span class="sc-err">${esc(err)}</span>
+      <button class="btn primary" type="submit" style="justify-content:center;padding:10px">Save password</button>
+    </form>`);
+  document.getElementById('np').onsubmit = async e => {
+    e.preventDefault();
+    const p1 = document.getElementById('n1').value, p2 = document.getElementById('n2').value;
+    if (p1.length < 8) return newPasswordForm('Use at least 8 characters.');
+    if (p1 !== p2) return newPasswordForm('The two passwords do not match.');
+    const { error } = await sb.auth.updateUser({ password: p1 });
+    if (error) return newPasswordForm(error.message);
+    history.replaceState(null, '', location.pathname);
+    start();
   };
 }
 
@@ -55,13 +123,16 @@ async function start() {
   if (!ws.me) return message('You are not on the team list yet', `You are signed in as <b>${esc(session.user.email)}</b>, but that email is not in Optimus's team list. Ask your admin to add it.`);
   bootOptimus({
     demo: false, status: '', me: ws.me.key, members: ws.members, rows: ws.rows, audit: ws.audit,
-    signOut, saveRows, addAudit, upload, fileUrl, fileBlob
+    signOut, saveRows, addAudit, upload, fileUrl, fileBlob, saveMember, removeMember
   });
 }
 
 if (configured) {
-  sb.auth.onAuthStateChange(ev => { if (ev === 'SIGNED_OUT') location.reload(); });
-  start();
+  sb.auth.onAuthStateChange(ev => {
+    if (ev === 'SIGNED_OUT') location.reload();
+    if (ev === 'PASSWORD_RECOVERY') newPasswordForm();
+  });
+  if (window.__recovery) newPasswordForm(); else start();
 } else {
   // No Supabase keys: run the original preview with sample data in memory.
   bootOptimus({ demo: true });

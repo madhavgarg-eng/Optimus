@@ -55,3 +55,15 @@ export async function fileBlob(path) {
   fail(error, 'Downloading file');
   return data;
 }
+
+// Team list (who can sign in, and their access level). The database decides who may change which rows.
+export async function saveMember(row) {
+  const { data, error } = await sb.from('team_members').upsert(row, { onConflict: 'key' }).select('key');
+  fail(error, 'Saving person');
+  if (!data || !data.length) throw new Error('You are not allowed to change this person.');
+}
+export async function removeMember(key) {
+  const { data, error } = await sb.from('team_members').delete().eq('key', key).select('key');
+  fail(error, 'Removing person');
+  if (!data || !data.length) throw new Error('You are not allowed to remove this person.');
+}

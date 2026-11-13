@@ -9,7 +9,7 @@ export function setupData(db, B) {
   Object.keys(B.users).forEach(k => delete B.users[k]);
   B.pms.length = 0;
   for (const m of db.members) {
-    B.users[m.key] = { name: m.name, role: m.title || '', kind: m.kind, color: m.color || '#525252' };
+    B.users[m.key] = { name: m.name, role: m.title || '', kind: m.kind, color: m.color || '#525252', email: m.email || '' };
     if (m.kind === 'pm') B.pms.push(m.key);
   }
 

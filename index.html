@@ -11,6 +11,7 @@
 <body>
 <div id="root"><p style="font:15px system-ui;padding:24px;color:#555">Loading Optimus…</p></div>
 <script>
+  window.__recovery = /type=recovery/.test(location.hash);
   window.__showErr = function (m) { var r = document.getElementById('root'); r.innerHTML = '<div style="font:14px system-ui;padding:24px;max-width:720px;color:#111;background:#fff"><b>Optimus could not start.</b><p>Please send this message to your admin:</p><pre style="white-space:pre-wrap;background:#f3f3f3;padding:12px;border-radius:8px"></pre></div>'; r.querySelector('pre').textContent = String(m); };
   window.addEventListener('error', function (e) { window.__showErr((e.message || 'Error') + (e.filename ? '\n' + e.filename + ':' + e.lineno : '')); });
   window.addEventListener('unhandledrejection', function (e) { window.__showErr('Unhandled: ' + (e.reason && (e.reason.stack || e.reason.message) || e.reason)); });

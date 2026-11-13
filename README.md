@@ -52,6 +52,10 @@ To turn it on, add two repository secrets in GitHub (**Settings**, then **Secret
 - `SUPABASE_URL`
 - `SUPABASE_ANON_KEY`
 
+## Accessibility
+- Works with a screen reader and keyboard alone: a skip link, every clickable row and card can be reached with Tab and opened with Enter, focus moves into a form or panel when it opens and back when it closes, Tab stays inside an open form, and messages are read out.
+- **Easy reading** (the **Aa** button in the top bar, also on the sign-in page) gives larger text, stronger contrast and clear focus outlines. Each person turns it on for themselves, and it is remembered on that device.
+
 ## Local development
 ```
 npm install

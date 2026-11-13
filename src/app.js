@@ -331,11 +331,11 @@ function drawerInvoice(v){
   if (isMgr() && v.status==='received' && s!=='Paid') acts.push(`<button class="btn primary" data-act="invapprove" data-id="${v.id}">${ic('tick')}Approve for payment</button>`);
   if (canAct && !h && v.status!=='received' && ['Awaiting payment','Partly paid','Overdue'].includes(s)) acts.push(`<button class="btn primary" data-act="modal" data-m="invpay" data-id="${v.id}">Record payment</button>`);
   if (canAct && ['Draft','Awaiting payment','Overdue'].includes(s) && !v.pays.length) acts.push(`<button class="btn ghost" data-act="invcancel" data-id="${v.id}">Cancel invoice</button>`);
-  return `<div class="scrim" data-act="close"><aside class="drawer wide" role="dialog" aria-label="Invoice detail" data-stop>
+  return `<div class="scrim" data-act="close"><div class="drawer wide" role="dialog" aria-label="Invoice detail" data-stop>
     <div class="drawer-h"><div style="flex:1"><div class="mono" style="color:var(--ink-3)">${esc(v.no)} · ${v.type==='sales'?'Receivable':'Payable to faculty'}</div><h2>${esc(invParty(v))}</h2><div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap">${invTag(v)}${invConf(v)?`<span class="tag t-warn">${ic('lock')} Senior faculty · honorarium access only</span>`:''}</div></div><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div>
     <div class="drawer-b">
       ${acts.length?`<div style="display:flex;gap:8px;flex-wrap:wrap">${acts.join('')}</div>`:''}
-      ${h?`<div class="card"><div class="lock">${ic('lock')}<h3>Amounts are confidential</h3><p style="max-width:44ch;margin:0">This is a senior faculty honorarium, so only people with honorarium access can see the invoice amount. You can still see its status: <b>${esc(s)}</b>.</p></div></div>`:`
+      ${h?`<div class="card"><div class="lock">${ic('lock')}<h2 class="h3">Amounts are confidential</h2><p style="max-width:44ch;margin:0">This is a senior faculty honorarium, so only people with honorarium access can see the invoice amount. You can still see its status: <b>${esc(s)}</b>.</p></div></div>`:`
       <div class="grid g4" style="gap:10px">
         <div class="card stat"><span class="lbl">Invoice total</span><span class="val num" style="font-size:22px">${rs(c.total)}</span></div>
         <div class="card stat"><span class="lbl">Received</span><span class="val num" style="font-size:22px">${rs(c.settled-v.pays.reduce((a,p)=>a+p.tds,0))}</span></div>
@@ -347,7 +347,7 @@ function drawerInvoice(v){
       <div><div class="eyebrow" style="margin-bottom:6px">Payments</div>${v.pays.length?v.pays.map(p=>`<div class="pay-row"><span class="tag t-good">${fmt(p.date)}</span><div style="flex:1"><b class="num">${rs(p.amt)}</b> received${p.tds?` · <span class="num">${rs(p.tds)}</span> TDS`:''}<div class="demo-note">${esc(p.ref||'No reference')}</div></div></div>`).join(''):'<div class="demo-note">No payments recorded yet.</div>'}</div>
       <div><div class="eyebrow" style="margin-bottom:8px">${v.att?'Recorded in Optimus as':'Invoice'}</div><div class="inv-wrap">${invDoc(v,true)}</div></div>`}
       <dl class="kv"><dt>Created by</dt><dd>${who(v.by)}</dd><dt>Programme Manager</dt><dd>${who(v.pm)}</dd><dt>Cohort</dt><dd>${esc(v.cohort||'—')}</dd></dl>
-    </div></aside></div>`;
+    </div></div></div>`;
 }
 
 // Downloads: the viewer's download capability when the page runs in claude.ai, a plain browser download otherwise.
@@ -546,7 +546,7 @@ function drawerFaculty(id){
   const f = FACULTY[id], conf = canConf();
   const calc = conf ? `${rs(f.rate)} per ${f.basis} × ${f.basis==='hour'?hrs(f.hours)+' hours':f.sessions+' sessions'} = <b>${rs(facHon(f))}</b>` : `${MASK} <span class="demo-note">${ic('lock')} Visible only to Rajiv and Neha</span>`;
   const sess = SESSIONS.filter(s=>s.fac===id).sort((a,b)=>b.date.localeCompare(a.date));
-  return `<div class="scrim" data-act="close"><aside class="drawer" role="dialog" aria-label="Faculty profile" data-stop>
+  return `<div class="scrim" data-act="close"><div class="drawer" role="dialog" aria-label="Faculty profile" data-stop>
     <div class="drawer-h"><div style="flex:1"><div class="eyebrow">${esc(f.city||'')}${f.senior?' · Senior faculty':''}</div><h2>${esc(f.name)}</h2><div class="demo-note" style="margin-top:2px">${esc(f.desig||'')}</div><div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">${payTagF(f.payroll)}${f.lastContact&&f.lastContact>='2026-10-01'?'<span class="tag t-good">Connected this quarter</span>':'<span class="tag t-warn">Connect due</span>'}</div></div><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div>
     <div class="drawer-b">
       ${isMgr()?`<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-act="modal" data-m="facform" data-id="${id}">Edit profile</button><button class="btn" data-act="modal" data-m="connect" data-id="${id}">${ic('phone')}Log a connect</button><button class="btn ghost" data-act="modal" data-m="facdel" data-id="${id}" style="color:var(--bad)">Remove from directory</button></div>`:''}
@@ -560,7 +560,7 @@ function drawerFaculty(id){
       <div><div class="eyebrow" style="margin-bottom:8px">Bank details</div>${f.bank&&f.bank.acct?`<dl class="kv"><dt>Account holder</dt><dd>${esc(f.bank.holder)}</dd><dt>Bank</dt><dd>${esc(f.bank.bank)}</dd><dt>Account no.</dt><dd class="mono" style="font-size:13px">${esc(acctTxt(f.bank.acct))}</dd><dt>IFSC</dt><dd class="mono" style="font-size:13px">${conf?esc(f.bank.ifsc):MASK}</dd><dt>PAN</dt><dd class="mono" style="font-size:13px">${f.pan?(conf?esc(f.pan):'XXXXX'+esc(f.pan.slice(5))):'—'}</dd></dl>`:'<div class="demo-note">No bank details yet. Add them before the first payment.</div>'}</div>
       <div><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><div class="eyebrow">Invoices received</div><button class="btn sm" data-act="modal" data-m="invrecv" data-id="${id}">${ic('upload')}Attach received invoice</button></div>${facInvoices(id).length?`<div class="list">${facInvoices(id).map(v=>{const c=invCalc(v),h=invHide(v);return `<div class="item click" data-act="inv" data-id="${v.id}" style="padding-inline:0;cursor:pointer"><div class="main-t"><b style="font-weight:600">${esc(v.no)}</b><div class="meta"><span>${fmt(v.date)}</span>${v.att?`<span>${ic('file')} ${esc(v.att.name.length>26?v.att.name.slice(0,25)+'…':v.att.name)}</span>`:''}<span>${h?MASK:rs(c.total)}${!h&&c.bal>=1&&c.settled?` · ${rs(c.bal)} due`:''}</span></div></div>${invTag(v)}</div>`}).join('')}</div>`:'<div class="demo-note">No invoices yet. Attach one when the faculty sends it.</div>'}</div>
       <div><div class="eyebrow" style="margin-bottom:8px">Sessions in Optimus</div>${sess.length?`<div class="list">${sess.map(s=>`<div class="item" style="padding-inline:0"><div class="main-t"><b style="font-weight:500">${esc(s.title)}</b><div class="meta"><span>${fmt(s.date)}</span><span>${esc(s.cohort)}</span><span>${s.mode}</span></div></div></div>`).join('')}</div>`:'<div class="demo-note">No sessions scheduled in Optimus yet.</div>'}</div>
-    </div></aside></div>`;
+    </div></div></div>`;
 }
 
 function facForm(id){
@@ -816,12 +816,12 @@ function shell(content){
   const u = USERS[S.user];
   const nav = navFor();
   const notifs = notifications();
-  return `<div class="app">
-  <aside class="rail">
+  return `<a class="skip" href="#main">Skip to main content</a><div class="app">
+  <aside class="rail" aria-label="Main menu">
     <div class="brand"><span class="brand-mark">O</span>Optimus</div>
     <nav class="nav" aria-label="Main">
       <div class="nav-label">Workspace</div>
-      ${nav.map(([k,l,i,c])=>`<button class="${S.view===k?'on':''}" data-act="go" data-v="${k}">${ic(i)}<span>${l}</span>${c?`<span class="count">${c}</span>`:''}</button>`).join('')}
+      ${nav.map(([k,l,i,c])=>`<button class="${S.view===k?'on':''}" data-act="go" data-v="${k}" ${S.view===k?'aria-current="page"':''}>${ic(i)}<span>${l}</span>${c?`<span class="count"><span class="sr-only">, </span>${c}<span class="sr-only"> ${k==='admin'?'waiting for approval':'overdue'}</span></span>`:''}</button>`).join('')}
     </nav>
     <div class="rail-foot">
       <div class="me">${av(S.user)}<div><b>${esc(u.name)}</b><small>${esc(u.role)}</small></div></div>
@@ -833,14 +833,14 @@ function shell(content){
       <label class="search">${ic('search')}<input id="q" placeholder="Search tasks, sessions, faculty, students" value="${esc(S.q)}" aria-label="Search"></label>
       <span class="spacer"></span>
       ${db.demo?'<span class="demo-pill">Preview · sample data</span>':(db.status?`<span class="demo-pill">${esc(db.status)}</span>`:'')}
-      <button class="iconbtn" data-act="theme" aria-label="Toggle theme">${ic('moon')}</button>
+      <button class="iconbtn easy-btn" data-act="easy" aria-pressed="${document.documentElement.hasAttribute('data-easy')}" title="Easy reading: larger text and stronger contrast">Aa</button><button class="iconbtn" data-act="theme" aria-label="Toggle theme">${ic('moon')}</button>
       <div style="position:relative">
         <button class="iconbtn" data-act="notif" aria-label="Notifications">${ic('bell')}${notifs.length?'<span class="dot"></span>':''}</button>
-        ${S.notif?`<div class="card notif"><div class="card-h"><h3>Notifications</h3><small>${notifs.length}</small></div><div class="list">${notifs.map(n=>`<div class="item"><span class="sev" style="background:var(--${n[0]})"></span><div class="main-t"><b style="font-weight:500">${n[1]}</b><div class="meta">${n[2]}</div></div></div>`).join('')}</div></div>`:''}
+        ${S.notif?`<div class="card notif"><div class="card-h"><h2 class="h3">Notifications</h2><small>${notifs.length}</small></div><div class="list">${notifs.map(n=>`<div class="item"><span class="sev" style="background:var(--${n[0]})"></span><div class="main-t"><b style="font-weight:500">${n[1]}</b><div class="meta">${n[2]}</div></div></div>`).join('')}</div></div>`:''}
       </div>
       <button class="iconbtn mobile-only" data-act="logout" aria-label="Switch person">${av(S.user)}</button>
     </header>
-    <main class="page">${content}</main>
+    <main class="page" id="main" tabindex="-1">${content}</main>
   </div>
   </div>`;
 }
@@ -871,6 +871,7 @@ function taskRow(t, opts={}){
 }
 
 function ring(pct, label){
+  if (!isFinite(pct)) return `<svg class="ring" viewBox="0 0 84 84" role="img" aria-label="${label}: no data yet"><circle cx="42" cy="42" r="34" fill="none" stroke="var(--surface-2)" stroke-width="8"/><text x="42" y="47" text-anchor="middle" font-size="15" font-weight="600" fill="var(--ink-3)">—</text></svg>`;
   const r=34, c=2*Math.PI*r, off=c*(1-Math.min(pct,100)/100);
   const col = pct>=90?'var(--good)':pct>=60?'var(--warn)':'var(--bad)';
   return `<svg class="ring" viewBox="0 0 84 84" role="img" aria-label="${label} ${pct}%"><circle cx="42" cy="42" r="${r}" fill="none" stroke="var(--surface-2)" stroke-width="8"/><circle cx="42" cy="42" r="${r}" fill="none" stroke="${col}" stroke-width="8" stroke-linecap="round" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${off.toFixed(1)}" transform="rotate(-90 42 42)"/><text x="42" y="47" text-anchor="middle" font-family="Bricolage Grotesque, sans-serif" font-size="17" font-weight="600" fill="var(--ink)">${pct}%</text></svg>`;
@@ -888,7 +889,7 @@ function viewMyDay(){
   const conn = facs.filter(([,f])=>f.lastContact && f.lastContact>='2026-10-01').length;
   const sess = SESSIONS.filter(s=>s.pm===me && dayDiff(s.date)>=0).sort((a,b)=>a.date.localeCompare(b.date));
   const notesDue = SESSIONS.filter(s=>s.pm===me && dayDiff(s.date)<0 && !s.notes);
-  const section = (title, list, hint) => list.length?`<div class="card"><div class="card-h"><h3>${title}</h3><small>${hint}</small></div><div class="list">${list.map(t=>taskRow(t)).join('')}</div></div>`:'';
+  const section = (title, list, hint) => list.length?`<div class="card"><div class="card-h"><h2 class="h3">${title}</h2><small>${hint}</small></div><div class="list">${list.map(t=>taskRow(t)).join('')}</div></div>`:'';
   return `
   <section class="hello">
     <div><div class="eyebrow" style="color:var(--rail-ink-2)">${fmtLong(TODAY_ISO)}</div><h1>Good morning, ${esc(u.name.split(' ')[0])}</h1><p>${overdue.length?`${overdue.length} item${overdue.length>1?'s are':' is'} overdue. Start there.`:'Nothing overdue. Nice work.'}</p></div>
@@ -914,16 +915,16 @@ function viewMyDay(){
       ${section('Later',later,'Recurring and long-running')}
     </div>
     <div class="grid" style="align-content:start">
-      <div class="card"><div class="card-h"><h3>Q4 coverage</h3><small>Quarter to date</small></div>
+      <div class="card"><div class="card-h"><h2 class="h3">Q4 coverage</h2><small>Quarter to date</small></div>
         <div class="card-b grid" style="gap:16px">
           <div class="ring-row">${ring(Math.round(done1/studs.length*100),'Student 1:1 coverage')}<div><b>Learner 1:1s</b> ${kpiChip(4)}<div class="demo-note">${done1} of ${studs.length} learners met this quarter. ${studs.length-done1} to go by 31 Dec.</div><button class="btn ghost sm" data-act="go" data-v="students" style="padding-left:0">See who is pending</button></div></div>
           <div class="ring-row">${ring(Math.round(conn/facs.length*100),'Faculty connect coverage')}<div><b>Faculty touchbase</b> ${kpiChip(3)}<div class="demo-note">${conn} of ${facs.length} faculty contacted this quarter.</div><button class="btn ghost sm" data-act="go" data-v="faculty" style="padding-left:0">See who to call</button></div></div>
         </div>
       </div>
-      <div class="card"><div class="card-h"><h3>Next sessions</h3><button class="btn ghost sm" data-act="go" data-v="sessions">All</button></div>
+      <div class="card"><div class="card-h"><h2 class="h3">Next sessions</h2><button class="btn ghost sm" data-act="go" data-v="sessions">All</button></div>
         <div class="list">${sess.slice(0,3).map(s=>sessItem(s)).join('') || '<div class="empty">No upcoming sessions</div>'}</div>
       </div>
-      ${notesDue.length?`<div class="card"><div class="card-h"><h3>Notes missing</h3><span class="tag t-bad">${notesDue.length}</span></div><div class="list">${notesDue.map(s=>`<div class="item"><div class="main-t"><b>${esc(s.title)}</b><div class="meta">${fmt(s.date)} · due ${fmt(addWorkdays(s.date,2))}</div></div><button class="btn sm" data-act="modal" data-m="notes" data-id="${s.id}">Add notes</button></div>`).join('')}</div></div>`:''}
+      ${notesDue.length?`<div class="card"><div class="card-h"><h2 class="h3">Notes missing</h2><span class="tag t-bad">${notesDue.length}</span></div><div class="list">${notesDue.map(s=>`<div class="item"><div class="main-t"><b>${esc(s.title)}</b><div class="meta">${fmt(s.date)} · due ${fmt(addWorkdays(s.date,2))}</div></div><button class="btn sm" data-act="modal" data-m="notes" data-id="${s.id}">Add notes</button></div>`).join('')}</div></div>`:''}
       ${myKpiCard()}
         </div>
   </div>`;
@@ -980,7 +981,7 @@ function viewOverview(){
     <div class="card stat"><span class="lbl">On-time compliance</span><span class="val num">${comp}%</span>${spark([71,74,70,76,79,77,comp],'var(--good)')}<span class="sub">Target 90%</span></div>
   </div>
   <div class="grid g21">
-    <div class="card"><div class="card-h"><h3>Needs attention</h3><small>Overdue and missing updates, oldest first</small></div>
+    <div class="card"><div class="card-h"><h2 class="h3">Needs attention</h2><small>Overdue and missing updates, oldest first</small></div>
       <div class="list">
         ${od.sort((a,b)=>a.due.localeCompare(b.due)).map(t=>`<div class="item click" data-act="open" data-id="${t.id}" style="cursor:pointer"><span class="sev" style="background:var(--bad)"></span>${av(t.owner)}<div class="main-t"><b>${esc(t.title)}</b><div class="meta"><span>${esc(UU(t.owner).name)}</span><span>Assigned by ${esc(UU(t.by).name.split(' ')[0])}</span>${t.comments.length?`<span>“${esc(t.comments[t.comments.length-1].t.slice(0,48))}${t.comments[t.comments.length-1].t.length>48?'…':''}”</span>`:''}</div></div>${statusTag(t)}</div>`).join('')}
         ${missingNotes.map(s=>`<div class="item"><span class="sev" style="background:var(--warn)"></span>${av(s.pm)}<div class="main-t"><b>Class notes missing: ${esc(s.title)}</b><div class="meta"><span>${esc(UU(s.pm).name)}</span><span>Session on ${fmt(s.date)}</span></div></div><span class="tag t-warn">Missing update</span></div>`).join('')}
@@ -988,15 +989,15 @@ function viewOverview(){
       </div>
     </div>
     <div class="grid" style="align-content:start">
-      <div class="card"><div class="card-h"><h3>By person</h3><small>On-time rate</small></div>
+      <div class="card"><div class="card-h"><h2 class="h3">By person</h2><small>On-time rate</small></div>
         <div class="tbl-wrap"><table><tbody>
         ${people.map(p=>{const c=compliance(p);const col=c.pct>=90?'var(--good)':c.pct>=70?'var(--warn)':'var(--bad)';return `<tr><td>${who(p)}</td><td style="width:40%"><div class="bar"><i style="width:${c.pct}%;background:${col}"></i></div></td><td class="r num"><b>${c.pct}%</b></td><td class="r num" style="color:${c.od?'var(--bad)':'var(--ink-3)'}">${c.od} late</td></tr>`}).join('')}
         </tbody></table></div>
       </div>
-      <div class="card"><div class="card-h"><h3>Upcoming sessions</h3><button class="btn ghost sm" data-act="go" data-v="sessions">All</button></div><div class="list">${upcoming.map(sessItem).join('')}</div></div>
+      <div class="card"><div class="card-h"><h2 class="h3">Upcoming sessions</h2><button class="btn ghost sm" data-act="go" data-v="sessions">All</button></div><div class="list">${upcoming.map(sessItem).join('')}</div></div>
     </div>
   </div>
-  <div class="card"><div class="card-h"><h3>${k==='chair'?'Tasks I assigned':'Tasks assigned by me'}</h3><small>${mine.filter(t=>t.status!=='done').length} open</small></div>
+  <div class="card"><div class="card-h"><h2 class="h3">${k==='chair'?'Tasks I assigned':'Tasks assigned by me'}</h2><small>${mine.filter(t=>t.status!=='done').length} open</small></div>
     <div class="tbl-wrap"><table><thead><tr><th>Task</th><th>Owner</th><th>Due</th><th>Last update</th><th>Status</th></tr></thead><tbody>
     ${mine.length?mine.map(t=>`<tr class="click" data-act="open" data-id="${t.id}"><td><b style="font-weight:600">${esc(t.title)}</b><div class="mono" style="color:var(--ink-3)">${t.id}</div></td><td>${who(t.owner)}</td><td class="num">${fmt(t.due)}</td><td style="color:var(--ink-2);font-size:13px;max-width:260px">${t.comments.length?esc(t.comments[t.comments.length-1].t):'No comments yet'}</td><td>${statusTag(t)}</td></tr>`).join(''):`<tr><td colspan="5" class="empty">Nothing assigned yet</td></tr>`}
     </tbody></table></div>
@@ -1017,7 +1018,7 @@ function viewTasks(){
   const scope = isMgr()?`<div class="seg">${[['mine','Mine'],['assigned','Assigned by me'],['all','Everyone']].map(([k,l])=>`<button class="${S.taskScope===k?'on':''}" data-act="scope" data-v="${k}">${l}</button>`).join('')}</div>`:'';
   return `<div class="page-head"><div><h1>Tasks</h1><p>${isMgr()?'Every task in Reverentia, with its owner, deadline and latest update.':'Everything you own. Tick it off when it is done.'}</p></div><button class="btn primary" data-act="modal" data-m="task">${ic('plus')}New task</button></div>
   <div class="toolbar">${scope}<div class="seg">${[['open','Open'],['overdue','Overdue'],['done','Done'],['all','All']].map(([k,l])=>`<button class="${f===k?'on':''}" data-act="tfilter" data-v="${k}">${l}</button>`).join('')}</div></div>
-  <div class="card">${isMgr()?`<div class="tbl-wrap"><table><thead><tr><th></th><th>Task</th><th>Owner</th><th>Frequency</th><th>Due</th><th>Status</th></tr></thead><tbody>${list.map(t=>`<tr class="click" data-act="open" data-id="${t.id}"><td style="width:40px"><button class="chk ${t.status==='done'?'on':''}" data-act="toggle" data-id="${t.id}" aria-label="Toggle done">${ic('tick')}</button></td><td><b style="font-weight:600">${esc(t.title)}</b><div class="meta" style="font-size:12px;color:var(--ink-3)"><span class="mono">${t.id}</span> · ${esc(t.cat)} · by ${esc(UU(t.by).name.split(' ')[0])}${taskKpi(t)?` · KPI ${taskKpi(t)}`:''}</div></td><td>${who(t.owner)}</td><td>${esc(t.freq)}</td><td class="num">${fmt(t.due)}</td><td>${statusTag(t)}</td></tr>`).join('')||'<tr><td colspan="6" class="empty">No tasks match</td></tr>'}</tbody></table></div>`:`<div class="list">${list.map(t=>taskRow(t)).join('')||'<div class="empty">No tasks match</div>'}</div>`}</div>`;
+  <div class="card">${isMgr()?`<div class="tbl-wrap"><table><thead><tr><th><span class="sr-only">Actions</span></th><th>Task</th><th>Owner</th><th>Frequency</th><th>Due</th><th>Status</th></tr></thead><tbody>${list.map(t=>`<tr class="click" data-act="open" data-id="${t.id}"><td style="width:40px"><button class="chk ${t.status==='done'?'on':''}" data-act="toggle" data-id="${t.id}" aria-label="Toggle done">${ic('tick')}</button></td><td><b style="font-weight:600">${esc(t.title)}</b><div class="meta" style="font-size:12px;color:var(--ink-3)"><span class="mono">${t.id}</span> · ${esc(t.cat)} · by ${esc(UU(t.by).name.split(' ')[0])}${taskKpi(t)?` · KPI ${taskKpi(t)}`:''}</div></td><td>${who(t.owner)}</td><td>${esc(t.freq)}</td><td class="num">${fmt(t.due)}</td><td>${statusTag(t)}</td></tr>`).join('')||'<tr><td colspan="6" class="empty">No tasks match</td></tr>'}</tbody></table></div>`:`<div class="list">${list.map(t=>taskRow(t)).join('')||'<div class="empty">No tasks match</div>'}</div>`}</div>`;
 }
 
 function viewSessions(){
@@ -1041,7 +1042,7 @@ function viewStudents(){
     <div class="card stat alert"><span class="lbl">Still to meet</span><span class="val num">${list.length-done}</span><span class="sub">Due by 31 Oct</span></div>
     <div class="card stat"><span class="lbl">Below 70% attendance</span><span class="val num">${list.filter(s=>s.att<70).length}</span><span class="sub">Flagged as at risk</span></div>
   </div>
-  <div class="card"><div class="tbl-wrap"><table><thead><tr><th>Student</th><th>Cohort</th>${isMgr()?'<th>PM</th>':''}<th class="c">Aug</th><th class="c">Sep</th><th class="c">Oct</th><th>Attendance</th><th></th></tr></thead><tbody>
+  <div class="card"><div class="tbl-wrap"><table><thead><tr><th>Student</th><th>Cohort</th>${isMgr()?'<th>PM</th>':''}<th class="c">Aug</th><th class="c">Sep</th><th class="c">Oct</th><th>Attendance</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>
   ${list.map(s=>`<tr><td><b style="font-weight:600">${esc(s.name)}</b></td><td>${esc(s.cohort)}</td>${isMgr()?`<td>${who(s.pm)}</td>`:''}${['2026-08','2026-09'].map(m=>{const o=s.ones.find(x=>x[0].startsWith(m));return `<td class="c num">${o?`<span class="tag t-good" title="${esc(o[1])}">${fmt(o[0])}</span>`:'<span class="tag t-bad">Missed</span>'}</td>`}).join('')}<td class="c num">${s.last?`<span class="tag t-good">${fmt(s.last)}</span>`:'<span class="tag t-warn">Pending</span>'}</td><td><div style="display:flex;align-items:center;gap:8px"><div class="bar" style="width:80px"><i style="width:${s.att}%;background:${s.att<70?'var(--bad)':s.att<85?'var(--warn)':'var(--good)'}"></i></div><span class="num">${s.att}%</span>${s.att<70?'<span class="tag t-bad">At risk</span>':''}</div></td><td class="r">${s.last?'':`<button class="btn sm" data-act="modal" data-m="oneone" data-id="${s.id}">Log 1:1</button>`}</td></tr>`).join('')}
   </tbody></table></div></div>`;
 }
@@ -1060,7 +1061,7 @@ function teamKpis(q){
     <div style="display:flex;gap:14px;align-items:center">${scoreRing(sc.total,84)}<div style="min-width:0"><div class="who">${av(p)}<b>${esc(UU(p).name)}</b></div><div style="margin-top:6px"><span class="tag ${sc.band.cls}">${sc.band.name}</span></div><div class="demo-note" style="margin-top:4px">${q==='Q4'?'Projected payout':'Payout'} ${sc.band.pay}% of variable pay${prev!=null?` · Q3 ${prev.toFixed(1)}`:''}</div></div></div>
     <div class="pill-bars">${[1,2,3].map(i=>{const pp=sc['p'+i];return `<div><span>Pillar ${i}</span><div class="bar"><i style="width:${pp.pts/pp.max*100}%;background:${scoreCol(pp.pts/pp.max*100)}"></i></div><b class="num">${pp.pts.toFixed(1)} / ${pp.max}</b></div>`}).join('')}</div>
     <div class="demo-note">Status: <b style="color:var(--ink)">${kstate(q,p)}</b></div></button>`; }).join('');
-  const matrix = `<div class="card"><div class="card-h"><h3>KPI matrix</h3><small>KPI score per PM · click a cell for the formula and evidence</small></div><div class="tbl-wrap"><table class="kmatrix"><thead><tr><th>KPI</th><th class="r">Weight</th>${PMS.map(p=>`<th class="c">${esc(UU(p).name.split(' ')[0])}</th>`).join('')}</tr></thead><tbody>
+  const matrix = `<div class="card"><div class="card-h"><h2 class="h3">KPI matrix</h2><small>KPI score per PM · click a cell for the formula and evidence</small></div><div class="tbl-wrap"><table class="kmatrix"><thead><tr><th>KPI</th><th class="r">Weight</th>${PMS.map(p=>`<th class="c">${esc(UU(p).name.split(' ')[0])}</th>`).join('')}</tr></thead><tbody>
     ${[1,2,3].map(pi=>`<tr class="pill-row"><td colspan="${2+PMS.length}">${PILLARS[pi]}</td></tr>`+KPI_DEF.filter(d=>d.p===pi).map(d=>`<tr><td><span class="kn">${d.n}</span>${esc(d.area)}</td><td class="r num">${d.w}%</td>${PMS.map(p=>{const s=kpiScore(d.n,kqv(q,p,d.n-1));return `<td class="c"><button class="kcell" data-act="kpi" data-n="${d.n}" data-p="${p}" style="background:color-mix(in srgb, ${scoreCol(s)} ${s<60?28:18}%, transparent);color:${scoreCol(s)}">${Math.round(s)}</button></td>`}).join('')}</tr>`).join('')).join('')}
     <tr class="tot"><td>Weighted score</td><td class="r num">100%</td>${PMS.map(p=>{const sc=scorecard(p,q);return `<td class="c num"><b style="color:${scoreCol(sc.total)}">${sc.total.toFixed(1)}</b></td>`}).join('')}</tr>
   </tbody></table></div></div>`;
@@ -1083,7 +1084,7 @@ function pmScorecard(p,q){
         <div class="pill-bars">${[1,2,3].map(i=>{const pp=sc['p'+i];return `<div><span>Pillar ${i}</span><div class="bar"><i style="width:${pp.pts/pp.max*100}%;background:${scoreCol(pp.pts/pp.max*100)}"></i></div><b class="num">${pp.pts.toFixed(1)} / ${pp.max}</b></div>`}).join('')}</div>
         ${action?`<div class="toolbar">${action}</div>`:''}
       </div></div></div>
-    <div class="card"><div class="card-h"><h3>Biggest gaps</h3><small>Points lost</small></div><div class="list">${gaps.map(g=>`<div class="item click" data-act="kpi" data-n="${g.n}" data-p="${p}" style="cursor:pointer"><span class="kn">${g.n}</span><div class="main-t"><b>${esc(g.area)}</b><div class="meta"><span>${esc(g.ev)}</span><span>Score ${Math.round(g.s)}</span></div></div><b class="num" style="color:var(--bad)">−${(g.w-g.pts).toFixed(1)}</b></div>`).join('')}</div></div>
+    <div class="card"><div class="card-h"><h2 class="h3">Biggest gaps</h2><small>Points lost</small></div><div class="list">${gaps.map(g=>`<div class="item click" data-act="kpi" data-n="${g.n}" data-p="${p}" style="cursor:pointer"><span class="kn">${g.n}</span><div class="main-t"><b>${esc(g.area)}</b><div class="meta"><span>${esc(g.ev)}</span><span>Score ${Math.round(g.s)}</span></div></div><b class="num" style="color:var(--bad)">−${(g.w-g.pts).toFixed(1)}</b></div>`).join('')}</div></div>
   </div>
   ${monthlyCard(p)}
   <div class="card"><div class="tbl-wrap"><table><thead><tr><th>KPI area</th><th>Evidence this quarter</th><th>KPI score</th><th class="r">Weight</th><th class="r">Points</th></tr></thead><tbody>
@@ -1118,7 +1119,7 @@ function monthChart(pms){
 }
 function monthlyCard(p){
   const pms = p ? [p] : PMS;
-  const head = `<div class="card-h"><h3>Monthly progress, target vs actual</h3><small>Reviewed every month · paid on the quarterly score</small></div>`;
+  const head = `<div class="card-h"><h2 class="h3">Monthly progress, target vs actual</h2><small>Reviewed every month · paid on the quarterly score</small></div>`;
   let table='';
   if (p){
     const hide = UU(S.user).kind==='pm';
@@ -1132,8 +1133,8 @@ function monthlyCard(p){
 }
 function payMatrix(score){
   const b = score==null?null:bandOf(score);
-  return `<div class="grid g2"><div class="card"><div class="card-h"><h3>Variable pay matrix</h3><small>Quarterly</small></div><div class="tbl-wrap"><table><thead><tr><th>Band</th><th>Weighted score</th><th class="r">Payout</th></tr></thead><tbody>${BANDS.map((x,i)=>`<tr ${b&&b.name===x[1]?'style="background:var(--accent-soft)"':''}><td><span class="tag ${x[3]}">${x[1]}</span></td><td class="num">${i===0?'90 and above':i===4?'Below 60':`${x[0]} to ${BANDS[i-1][0]-1}`}</td><td class="r num"><b>${x[2]}%</b>${i===4?' · PIP':''}</td></tr>`).join('')}</tbody></table></div></div>
-  <div class="card"><div class="card-h"><h3>Governance</h3><small>Section 7</small></div><div class="list">
+  return `<div class="grid g2"><div class="card"><div class="card-h"><h2 class="h3">Variable pay matrix</h2><small>Quarterly</small></div><div class="tbl-wrap"><table><thead><tr><th>Band</th><th>Weighted score</th><th class="r">Payout</th></tr></thead><tbody>${BANDS.map((x,i)=>`<tr ${b&&b.name===x[1]?'style="background:var(--accent-soft)"':''}><td><span class="tag ${x[3]}">${x[1]}</span></td><td class="num">${i===0?'90 and above':i===4?'Below 60':`${x[0]} to ${BANDS[i-1][0]-1}`}</td><td class="r num"><b>${x[2]}%</b>${i===4?' · PIP':''}</td></tr>`).join('')}</tbody></table></div></div>
+  <div class="card"><div class="card-h"><h2 class="h3">Governance</h2><small>Section 7</small></div><div class="list">
     ${[['Quarter closes','30 Sep'],['10% spot-check of tracker entries','Monthly, by RG or Ops Lead'],['Scores calculated and shared with each PM','Within 30 days'],['Quarterly review with Managing Partner','Formula-only for Pillars 1 and 2'],['Scores locked and signed by both parties','By 30 Oct']].map(([a,b2],i)=>`<div class="item"><span class="kn">${i+1}</span><div class="main-t"><b style="font-weight:500">${a}</b><div class="meta">${b2}</div></div></div>`).join('')}
     <div class="item"><div class="main-t"><div class="meta">A confirmed false entry zeroes that KPI for the quarter. Data queries are settled only by tracker records.</div></div></div>
   </div></div></div>`;
@@ -1142,7 +1143,7 @@ function drawerKpi(n, p){
   const d = KPI_DEF[n-1], q = S.kpiQ, pm = p || (isMgr()? null : S.user);
   const v = pm ? kqv(q,pm,n-1) : null, s = pm ? kpiScore(n,v) : null;
   const hide360 = d.p===3 && UU(S.user).kind==='pm';
-  return `<div class="scrim" data-act="close"><aside class="drawer" role="dialog" aria-label="KPI detail" data-stop>
+  return `<div class="scrim" data-act="close"><div class="drawer" role="dialog" aria-label="KPI detail" data-stop>
     <div class="drawer-h"><div style="flex:1"><div class="eyebrow">${PILLARS[d.p]}</div><h2>KPI ${n}. ${esc(d.area)}</h2><div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap"><span class="tag t-accent plain">Weight ${d.w}%</span><span class="tag plain">${esc(d.src)}</span></div></div><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div>
     <div class="drawer-b">
       ${pm?`<div class="card card-b" style="display:flex;gap:16px;align-items:center;box-shadow:none">${scoreRing(s,84)}<div><div class="who">${av(pm)}<b>${esc(UU(pm).name)}</b></div><div class="demo-note" style="margin-top:4px">${q==='Q3'?'Q3 final':'Q4 to date'} · ${hide360?'Individual ratings are held by RG and not visible to you':esc(kpiEvidence(n,v))}</div><div style="margin-top:4px;font-size:13px">Contributes <b class="num">${(s*d.w/100).toFixed(2)}</b> of ${d.w} points</div></div></div>`:''}
@@ -1150,16 +1151,16 @@ function drawerKpi(n, p){
       <div><div class="eyebrow" style="margin-bottom:8px">Formula</div><div class="formula">${esc(d.formula)}</div></div>
       <dl class="kv"><dt>Data source</dt><dd>${esc(d.src)}</dd><dt>Recorded in Optimus</dt><dd>${esc(d.rec)}</dd><dt>Scoring</dt><dd>${n===11?'Banded (exception in Section 2)':n===14?'NPS × 2, capped 0 to 100 (exception)':'Linear: KPI score = compliance %, capped 0 to 100'}</dd>${d.p===1?'<dt>Audit</dt><dd>10% of entries spot-checked monthly against evidence</dd>':''}</dl>
       ${pm&&isMgr()?`<div><div class="eyebrow" style="margin-bottom:8px">All PMs, ${q==='Q3'?'Q3':'Q4 to date'}</div><div class="grid" style="gap:8px">${PMS.map(x=>{const sx=kpiScore(n,kqv(q,x,n-1));return `<div style="display:flex;align-items:center;gap:10px">${av(x)}<span style="width:110px">${esc(UU(x).name.split(' ')[0])}</span><div class="bar" style="flex:1"><i style="width:${sx}%;background:${scoreCol(sx)}"></i></div><b class="num" style="width:28px;text-align:right">${Math.round(sx)}</b></div>`}).join('')}</div></div>`:''}
-    </div></aside></div>`;
+    </div></div></div>`;
 }
 function myKpiCard(){
   const sc = scorecard(S.user,'Q4'), gaps = sc.rows.slice().sort((a,b)=>(b.w-b.pts)-(a.w-a.pts)).slice(0,3);
-  return `<div class="card"><div class="card-h"><h3>My KPI score, Q4 to date</h3><button class="btn ghost sm" data-act="go" data-v="kpis">Scorecard</button></div>
+  return `<div class="card"><div class="card-h"><h2 class="h3">My KPI score, Q4 to date</h2><button class="btn ghost sm" data-act="go" data-v="kpis">Scorecard</button></div>
     <div class="card-b grid" style="gap:14px"><div class="ring-row">${scoreRing(sc.total,84)}<div><span class="tag ${sc.band.cls}">${sc.band.name}</span><div class="demo-note" style="margin-top:6px">Projected payout ${sc.band.pay}% of variable pay. ${sc.band.min<90?`${(BANDS[BANDS.findIndex(b=>b[1]===sc.band.name)-1][0]-sc.total).toFixed(1)} points to the next band.`:''}</div></div></div>
     <div class="grid" style="gap:8px"><div class="eyebrow">Where you are losing points</div>${gaps.map(g=>`<button class="gap-row" data-act="kpi" data-n="${g.n}" data-p="${S.user}"><span class="kn">${g.n}</span><span style="flex:1;text-align:left">${esc(g.area)}</span><b class="num" style="color:var(--bad)">−${(g.w-g.pts).toFixed(1)}</b></button>`).join('')}</div></div></div>`;
 }
 function teamKpiCard(){
-  return `<div class="card"><div class="card-h"><h3>PM KPI scorecards</h3><button class="btn ghost sm" data-act="go" data-v="kpis">Open KPIs</button></div><div class="tbl-wrap"><table><thead><tr><th>Programme Manager</th><th>Q4 to date</th><th>Band</th><th class="r">Projected payout</th><th class="r">Q3 final</th><th>Biggest gap</th><th>Q3 status</th></tr></thead><tbody>
+  return `<div class="card"><div class="card-h"><h2 class="h3">PM KPI scorecards</h2><button class="btn ghost sm" data-act="go" data-v="kpis">Open KPIs</button></div><div class="tbl-wrap"><table><thead><tr><th>Programme Manager</th><th>Q4 to date</th><th>Band</th><th class="r">Projected payout</th><th class="r">Q3 final</th><th>Biggest gap</th><th>Q3 status</th></tr></thead><tbody>
   ${PMS.map(p=>{const sc=scorecard(p,'Q4'),q3=scorecard(p,'Q3'),g=sc.rows.slice().sort((a,b)=>(b.w-b.pts)-(a.w-a.pts))[0];return `<tr class="click" data-act="kpm" data-v="${p}" data-go="1"><td>${who(p)}</td><td><div style="display:flex;align-items:center;gap:8px;min-width:140px"><div class="bar" style="flex:1"><i style="width:${sc.total}%;background:${scoreCol(sc.total)}"></i></div><b class="num">${sc.total.toFixed(1)}</b></div></td><td><span class="tag ${sc.band.cls}">${sc.band.name}</span></td><td class="r num">${sc.band.pay}%</td><td class="r num">${q3.total.toFixed(1)}</td><td style="font-size:13px"><span class="kn">${g.n}</span>${esc(g.area)} <span style="color:var(--bad)" class="num">−${(g.w-g.pts).toFixed(1)}</span></td><td><span class="tag plain">${KSTATE.Q3[p]}</span></td></tr>`}).join('')}
   </tbody></table></div></div>`;
 }
@@ -1172,9 +1173,9 @@ function viewPayments(){
     const list = SESSIONS.filter(s=>dayDiff(s.date)<0).sort((a,b)=>b.date.localeCompare(a.date));
     body = `<div class="card"><div class="tbl-wrap"><table><thead><tr><th>Session</th><th>Faculty</th><th>Invoice</th><th>Payment</th><th>TDS</th><th>PM</th></tr></thead><tbody>${list.map(s=>`<tr><td><b style="font-weight:600">${esc(s.title)}</b><div style="font-size:12px;color:var(--ink-3)">${fmt(s.date)}</div></td><td>${facName(s.fac)}</td><td>${payTag(s.pay.inv)}</td><td>${payTag(s.pay.paid)}</td><td>${payTag(s.pay.tds)}</td><td>${who(s.pm)}</td></tr>`).join('')}</tbody></table></div></div>`;
   } else if (!canConf()){
-    body = `<div class="card"><div class="lock">${ic('lock')}<h3>You don't have honorarium access</h3><p style="max-width:44ch;margin:0">Senior faculty honorariums are confidential. The database only sends them to people who have been given honorarium access.</p></div></div>`;
+    body = `<div class="card"><div class="lock">${ic('lock')}<h2 class="h3">You don't have honorarium access</h2><p style="max-width:44ch;margin:0">Senior faculty honorariums are confidential. The database only sends them to people who have been given honorarium access.</p></div></div>`;
   } else {
-    body = `<div class="card"><div class="card-h"><h3>Senior faculty honorariums</h3><span class="tag t-warn">${ic('lock')} Honorarium access only</span></div><div class="tbl-wrap"><table><thead><tr><th>Faculty</th><th>Session</th><th class="r">Amount</th><th>Status</th><th>Note</th></tr></thead><tbody>${HONORARIA.map(h=>`<tr><td><b style="font-weight:600">${facName(h.fac)}</b></td><td>${esc(SESSIONS.find(s=>s.id===h.session).title)}</td><td class="r num"><b>${inr(h.amt)}</b></td><td><span class="tag ${h.status==='Paid'?'t-good':h.status==='Approved'?'t-info':''}">${h.status}</span></td><td style="color:var(--ink-2)">${esc(h.note)}</td></tr>`).join('')}</tbody></table></div></div>`;
+    body = `<div class="card"><div class="card-h"><h2 class="h3">Senior faculty honorariums</h2><span class="tag t-warn">${ic('lock')} Honorarium access only</span></div><div class="tbl-wrap"><table><thead><tr><th>Faculty</th><th>Session</th><th class="r">Amount</th><th>Status</th><th>Note</th></tr></thead><tbody>${HONORARIA.map(h=>`<tr><td><b style="font-weight:600">${facName(h.fac)}</b></td><td>${esc(SESSIONS.find(s=>s.id===h.session).title)}</td><td class="r num"><b>${inr(h.amt)}</b></td><td><span class="tag ${h.status==='Paid'?'t-good':h.status==='Approved'?'t-info':''}">${h.status}</span></td><td style="color:var(--ink-2)">${esc(h.note)}</td></tr>`).join('')}</tbody></table></div></div>`;
   }
   return `<div class="page-head"><div><h1>Payments</h1><p>Faculty payment and TDS status by session.</p>${kpiFeeds([2])}</div>${tabs}</div>${body}`;
 }
@@ -1191,10 +1192,10 @@ function viewReports(){
     <div class="card stat"><span class="lbl">Missing class notes</span><span class="val num">${SESSIONS.filter(s=>dayDiff(s.date)<-2 && !s.notes).length}</span><span class="sub">Sessions over 2 days old</span></div>
     <div class="card stat"><span class="lbl">Open 7+ days overdue</span><span class="val num">${TASKS.filter(t=>t.status!=='done' && dayDiff(t.due)<-7).length}</span><span class="sub">Shown to Rajiv by name</span></div>`}
   </div>
-  <div class="card"><div class="card-h"><h3>By person</h3></div><div class="tbl-wrap"><table><thead><tr><th>Person</th><th class="r">Open</th><th class="r">Overdue</th><th class="r">On-time rate</th><th>Exceptions raised</th></tr></thead><tbody>
+  <div class="card"><div class="card-h"><h2 class="h3">By person</h2></div><div class="tbl-wrap"><table><thead><tr><th>Person</th><th class="r">Open</th><th class="r">Overdue</th><th class="r">On-time rate</th><th>Exceptions raised</th></tr></thead><tbody>
   ${people.map(p=>{const c=compliance(p);return `<tr><td>${who(p)}</td><td class="r num">${c.open}</td><td class="r num" style="color:${c.od?'var(--bad)':'inherit'}">${c.od}</td><td class="r num"><b>${c.pct}%</b></td><td style="color:var(--ink-2);font-size:13px">${c.od?(db.demo?`Raised with ${esc(UU(p).name.split(' ')[0])} on 13 Oct`:`${c.od} overdue`):'None'}</td></tr>`}).join('')}
   </tbody></table></div></div>
-  ${db.demo?`  <div class="card"><div class="card-h"><h3>Monthly spot-check, October</h3><small>10% random sample of tracker entries · Section 7</small></div><div class="tbl-wrap"><table><thead><tr><th>Programme Manager</th><th class="r">Entries sampled</th><th class="r">Confirmed</th><th class="r">Open queries</th><th class="r">False entries</th></tr></thead><tbody>
+  ${db.demo?`  <div class="card"><div class="card-h"><h2 class="h3">Monthly spot-check, October</h2><small>10% random sample of tracker entries · Section 7</small></div><div class="tbl-wrap"><table><thead><tr><th>Programme Manager</th><th class="r">Entries sampled</th><th class="r">Confirmed</th><th class="r">Open queries</th><th class="r">False entries</th></tr></thead><tbody>
     ${[['ananya',18,17,1,0],['karan',15,15,0,0],['ishita',14,12,2,0]].map(r=>`<tr><td>${who(r[0])}</td><td class="r num">${r[1]}</td><td class="r num">${r[2]}</td><td class="r num">${r[3]?`<span class="tag t-warn">${r[3]}</span>`:'0'}</td><td class="r num">${r[4]}</td></tr>`).join('')}
   </tbody></table></div></div>`:''}
   <div class="card card-b" style="font-size:13px;color:var(--ink-2)"><b style="color:var(--ink)">Escalation rule:</b> overdue more than 3 working days, Madhav raises it with the owner. Still open after 7 working days, it appears here by name for Rajiv.</div>`;
@@ -1204,9 +1205,9 @@ function viewAdmin(){
   const t = S.adminTab;
   const tabs = `<div class="seg">${[['templates','Recurring templates'],['kpis','KPI framework'],['users','People and access'],['audit','Audit log']].map(([k,l])=>`<button class="${t===k?'on':''}" data-act="admintab" data-v="${k}">${l}</button>`).join('')}</div>`;
   let body='';
-  if (t==='templates') body = `<div class="card"><div class="card-h"><h3>Recurring templates</h3><button class="btn sm primary" data-act="toast" data-t="Template editor opens here">${ic('plus')}New template</button></div><div class="tbl-wrap"><table><thead><tr><th>Template</th><th>Assigned to</th><th>Frequency</th><th>Due</th><th>Record required</th><th>Next run</th></tr></thead><tbody>${TEMPLATES.map(x=>`<tr><td><b style="font-weight:600">${esc(x.name)}</b></td><td>${esc(x.who)}</td><td><span class="tag plain t-accent">${x.freq}</span></td><td>${esc(x.when)}</td><td>${esc(x.rec)}</td><td class="num">${x.next==='Auto'?'Per session':fmt(x.next)}</td></tr>`).join('')}</tbody></table></div></div>`;
+  if (t==='templates') body = `<div class="card"><div class="card-h"><h2 class="h3">Recurring templates</h2><button class="btn sm primary" data-act="toast" data-t="Template editor opens here">${ic('plus')}New template</button></div><div class="tbl-wrap"><table><thead><tr><th>Template</th><th>Assigned to</th><th>Frequency</th><th>Due</th><th>Record required</th><th>Next run</th></tr></thead><tbody>${TEMPLATES.map(x=>`<tr><td><b style="font-weight:600">${esc(x.name)}</b></td><td>${esc(x.who)}</td><td><span class="tag plain t-accent">${x.freq}</span></td><td>${esc(x.when)}</td><td>${esc(x.rec)}</td><td class="num">${x.next==='Auto'?'Per session':fmt(x.next)}</td></tr>`).join('')}</tbody></table></div></div>`;
   if (t==='users') body = usersTab();
-  if (t==='kpis') body = `<div class="card"><div class="card-h"><h3>KPI framework · Rev 6</h3><span class="tag t-good plain">Weights total ${KPI_DEF.reduce((a,d)=>a+d.w,0)}%</span></div><div class="tbl-wrap"><table><thead><tr><th>KPI</th><th>Pillar</th><th>Data source</th><th>Recorded in Optimus</th><th class="r">Weight</th></tr></thead><tbody>${KPI_DEF.map(d=>`<tr class="click" data-act="kpi" data-n="${d.n}"><td><span class="kn">${d.n}</span>${esc(d.area)}</td><td>${d.p}</td><td style="font-size:13px">${esc(d.src)}</td><td style="font-size:13px">${esc(d.rec)}</td><td class="r num"><b>${d.w}%</b></td></tr>`).join('')}</tbody></table></div></div><p class="demo-note">Only Rajiv can change weights. Each change is versioned so past quarters keep the weights they were scored on.</p>`;
+  if (t==='kpis') body = `<div class="card"><div class="card-h"><h2 class="h3">KPI framework · Rev 6</h2><span class="tag t-good plain">Weights total ${KPI_DEF.reduce((a,d)=>a+d.w,0)}%</span></div><div class="tbl-wrap"><table><thead><tr><th>KPI</th><th>Pillar</th><th>Data source</th><th>Recorded in Optimus</th><th class="r">Weight</th></tr></thead><tbody>${KPI_DEF.map(d=>`<tr class="click" data-act="kpi" data-n="${d.n}"><td><span class="kn">${d.n}</span>${esc(d.area)}</td><td>${d.p}</td><td style="font-size:13px">${esc(d.src)}</td><td style="font-size:13px">${esc(d.rec)}</td><td class="r num"><b>${d.w}%</b></td></tr>`).join('')}</tbody></table></div></div><p class="demo-note">Only Rajiv can change weights. Each change is versioned so past quarters keep the weights they were scored on.</p>`;
   if (t==='audit') body = `<div class="card"><div class="list">${AUDIT.map(a=>`<div class="item">${av(a[1])}<div class="main-t"><b style="font-weight:500">${esc(USERS[a[1]].name)} ${esc(a[2])}</b><div class="meta">${esc(a[3])}</div></div><span class="mono" style="color:var(--ink-3)">${esc(a[0])}</span></div>`).join('')}</div></div>`;
   return `<div class="page-head"><div><h1>Admin</h1><p>Recurring work, people and access, and a full record of changes.</p></div>${tabs}</div>${body}`;
 }
@@ -1227,14 +1228,14 @@ const canEditMember = id => isOwner(S.user) || (canManageUsers() && !isOwner(id)
 function usersTab(){
   const order = Object.keys(LEVELS);
   const ids = Object.keys(USERS).sort((a,b)=>order.indexOf(UU(a).kind)-order.indexOf(UU(b).kind) || UU(a).name.localeCompare(UU(b).name));
-  return `${requestsCard()}<div class="card"><div class="card-h"><h3>People and access</h3>${canManageUsers()?`<button class="btn sm primary" data-act="modal" data-m="member">${ic('plus')}Add person</button>`:''}</div><div class="tbl-wrap"><table><thead><tr><th>Person</th><th>Title</th><th>Access level</th><th>Email</th><th>Honorariums</th><th></th></tr></thead><tbody>${ids.map(id=>{const u=UU(id), k=u.kind;return `<tr><td>${who(id)}</td><td>${esc(u.role)}</td><td><b style="font-weight:600">${esc((LEVELS[k]||[k])[0])}</b><div style="font-size:12px;color:var(--ink-3);max-width:34ch">${esc((LEVELS[k]||['',''])[1])}</div></td><td style="font-size:13px">${esc(u.email||'')}</td><td>${hasHon(id)?'<span class="tag t-good">Visible</span>':'<span class="tag">Masked</span>'}</td><td class="r">${canEditMember(id)?`<button class="btn sm" data-act="modal" data-m="member" data-id="${id}">Edit</button>${id!==S.user?` <button class="btn sm" data-act="modal" data-m="memberdel" data-id="${id}">Remove</button>`:''}`:''}</td></tr>`}).join('')}</tbody></table></div></div>
+  return `${requestsCard()}<div class="card"><div class="card-h"><h2 class="h3">People and access</h2>${canManageUsers()?`<button class="btn sm primary" data-act="modal" data-m="member">${ic('plus')}Add person</button>`:''}</div><div class="tbl-wrap"><table><thead><tr><th>Person</th><th>Title</th><th>Access level</th><th>Email</th><th>Honorariums</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>${ids.map(id=>{const u=UU(id), k=u.kind;return `<tr><td>${who(id)}</td><td>${esc(u.role)}</td><td><b style="font-weight:600">${esc((LEVELS[k]||[k])[0])}</b><div style="font-size:12px;color:var(--ink-3);max-width:34ch">${esc((LEVELS[k]||['',''])[1])}</div></td><td style="font-size:13px">${esc(u.email||'')}</td><td>${hasHon(id)?'<span class="tag t-good">Visible</span>':'<span class="tag">Masked</span>'}</td><td class="r">${canEditMember(id)?`<button class="btn sm" data-act="modal" data-m="member" data-id="${id}">Edit</button>${id!==S.user?` <button class="btn sm" data-act="modal" data-m="memberdel" data-id="${id}">Remove</button>`:''}`:''}</td></tr>`}).join('')}</tbody></table></div></div>
   <p class="demo-note">${isOwner(S.user)?'As DWM owner you can give any access level and change anyone.':canConf()?'Only a DWM owner can add or change DWM owners.':'Only people with honorarium access can give it, or change people who have it.'} New people can create their own account from the sign-in page, and the DWM owner approves it here. You can also add someone directly; they then set up their account with the email you entered.</p>`;
 }
 function requestsCard(){
   if (!isOwner(S.user)) return '';
   const list = REQUESTS.slice().sort((a,b)=>(a.status==='pending'?0:1)-(b.status==='pending'?0:1) || String(b.requested_at).localeCompare(String(a.requested_at)));
   const when = iso => { try { return fmt(String(iso).slice(0,10)); } catch(_) { return ''; } };
-  return `<div class="card"><div class="card-h"><h3>Sign-up requests</h3><small>${pendingReqs().length} waiting</small></div>${list.length?`<div class="tbl-wrap"><table><thead><tr><th>Name</th><th>Email</th><th>Asked on</th><th>Status</th><th></th></tr></thead><tbody>${list.map(r=>`<tr><td><b style="font-weight:600">${esc(r.name||'—')}</b></td><td style="font-size:13px">${esc(r.email)}</td><td class="num">${when(r.requested_at)}</td><td>${r.status==='pending'?'<span class="tag t-warn">Waiting</span>':'<span class="tag">Declined</span>'}</td><td class="r"><button class="btn sm primary" data-act="modal" data-m="approve" data-id="${esc(r.email)}">${r.status==='pending'?'Approve':'Approve anyway'}</button>${r.status==='pending'?` <button class="btn sm" data-act="reqdecline" data-id="${esc(r.email)}">Decline</button>`:''}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty">No one is waiting. When someone creates an account, their request appears here.</div>'}</div>`;
+  return `<div class="card"><div class="card-h"><h2 class="h3">Sign-up requests</h2><small>${pendingReqs().length} waiting</small></div>${list.length?`<div class="tbl-wrap"><table><thead><tr><th>Name</th><th>Email</th><th>Asked on</th><th>Status</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>${list.map(r=>`<tr><td><b style="font-weight:600">${esc(r.name||'—')}</b></td><td style="font-size:13px">${esc(r.email)}</td><td class="num">${when(r.requested_at)}</td><td>${r.status==='pending'?'<span class="tag t-warn">Waiting</span>':'<span class="tag">Declined</span>'}</td><td class="r"><button class="btn sm primary" data-act="modal" data-m="approve" data-id="${esc(r.email)}">${r.status==='pending'?'Approve':'Approve anyway'}</button>${r.status==='pending'?` <button class="btn sm" data-act="reqdecline" data-id="${esc(r.email)}">Decline</button>`:''}</td></tr>`).join('')}</tbody></table></div>`:'<div class="empty">No one is waiting. When someone creates an account, their request appears here.</div>'}</div>`;
 }
 async function reqDecline(email, btn){
   const r = REQUESTS.find(x=>x.email===email); if (!r) return;
@@ -1307,7 +1308,7 @@ function viewCohorts(){
       ${c.status==='Running'?`<div class="mini-stats"><div><b class="num" style="color:${pctCol(st.att)}">${pctTxt(st.att)}</b><span>Attendance</span></div><div><b class="num">${pctTxt(st.sub)}</b><span>Submitted</span></div><div><b class="num">${pctTxt(st.score)}</b><span>Avg score</span></div><div><b class="num" style="color:${st.risk?'var(--bad)':'inherit'}">${st.risk}</b><span>At risk</span></div></div>`:`<div class="mini-stats"><div><b class="num">${c.size}</b><span>Admitted</span></div><div><b class="num">${fmt(c.start)}</b><span>Starts</span></div></div>`}
       <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-2)">${av(c.pm)}<span>${esc(UU(c.pm).name)}</span></div>
     </button>`}).join('')}</div></section>`).join('')}
-  ${running.length>1?`<div class="card"><div class="card-h"><h3>Compare cohorts</h3><small>Running cohorts, programme to date</small></div><div class="card-b">${compareChart(running)}</div></div>`:''}`;
+  ${running.length>1?`<div class="card"><div class="card-h"><h2 class="h3">Compare cohorts</h2><small>Running cohorts, programme to date</small></div><div class="card-b">${compareChart(running)}</div></div>`:''}`;
 }
 
 function compareChart(list){
@@ -1323,19 +1324,19 @@ function viewCohort(c){
   const tab = S.ctab, st = cohortStats(c);
   const tabs = [['profile','Profile'],['students','Students'],['assignments','Assignments'],['attendance','Attendance'],['analytics','Analytics']];
   let body = '';
-  if (tab==='profile') body = `<div class="grid g21"><div class="card"><div class="card-h"><h3>Cohort profile</h3><button class="btn sm" data-act="toast" data-t="Profile editor opens here">Edit</button></div><div class="card-b"><dl class="kv">
+  if (tab==='profile') body = `<div class="grid g21"><div class="card"><div class="card-h"><h2 class="h3">Cohort profile</h2><button class="btn sm" data-act="toast" data-t="Profile editor opens here">Edit</button></div><div class="card-b"><dl class="kv">
       <dt>Programme</dt><dd>${c.prog}</dd><dt>Cohort code</dt><dd class="mono" style="font-size:13px">${c.code}</dd><dt>Status</dt><dd>${statusTagC(c)}</dd>
       <dt>Dates</dt><dd class="num">${fmtLong(c.start)} ${D(c.start).getFullYear()} to ${fmtLong(c.end)} ${D(c.end).getFullYear()}</dd><dt>Format</dt><dd>${esc(c.format)}</dd>
       <dt>Programme Manager</dt><dd>${who(c.pm)}</dd><dt>Students</dt><dd class="num">${c.size}</dd><dt>Sessions held</dt><dd class="num">${c.sess.length}</dd><dt>Assignments set</dt><dd class="num">${c.asg.length}</dd></dl></div></div>
-    <div class="grid" style="align-content:start"><div class="card"><div class="card-h"><h3>Key dates</h3></div><div class="list">${c.keydates.map(([l,d])=>`<div class="item"><div class="main-t"><b>${esc(l)}</b></div><span class="num" style="color:var(--ink-2)">${fmt(d)} ${D(d).getFullYear()}</span></div>`).join('')}</div></div>
-    <div class="card"><div class="card-h"><h3>Faculty roster</h3></div><div class="list">${c.faculty.map(f=>`<div class="item"><div class="main-t"><b>${esc(FACULTY[f].name)}</b><div class="meta">${esc(FACULTY[f].exp)}</div></div></div>`).join('')}</div></div></div></div>`;
-  if (tab==='students') body = `<div class="card"><div class="tbl-wrap"><table><thead><tr><th>Student</th><th>Attendance</th><th class="r">Submitted</th><th class="r">Avg score</th><th>Last 1:1</th><th></th></tr></thead><tbody>
+    <div class="grid" style="align-content:start"><div class="card"><div class="card-h"><h2 class="h3">Key dates</h2></div><div class="list">${c.keydates.map(([l,d])=>`<div class="item"><div class="main-t"><b>${esc(l)}</b></div><span class="num" style="color:var(--ink-2)">${fmt(d)} ${D(d).getFullYear()}</span></div>`).join('')}</div></div>
+    <div class="card"><div class="card-h"><h2 class="h3">Faculty roster</h2></div><div class="list">${c.faculty.map(f=>`<div class="item"><div class="main-t"><b>${esc(FACULTY[f].name)}</b><div class="meta">${esc(FACULTY[f].exp)}</div></div></div>`).join('')}</div></div></div></div>`;
+  if (tab==='students') body = `<div class="card"><div class="tbl-wrap"><table><thead><tr><th>Student</th><th>Attendance</th><th class="r">Submitted</th><th class="r">Avg score</th><th>Last 1:1</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>
     ${c.students.slice().sort((a,b)=>(a.att??101)-(b.att??101)).map(s=>{const sub=s.subs.filter(x=>x.st!=='Missing').length;return `<tr class="click" data-act="student" data-id="${s.id}"><td><b style="font-weight:600">${esc(s.name)}</b><div class="mono" style="color:var(--ink-3)">${s.id}</div></td><td>${s.att==null?'<span class="demo-note">Starts '+fmt(c.start)+'</span>':`<div style="display:flex;align-items:center;gap:8px"><div class="bar" style="width:90px"><i style="width:${s.att}%;background:${pctCol(s.att)}"></i></div><span class="num">${s.att}%</span></div>`}</td><td class="r num">${s.subs.length?`${sub} / ${s.subs.length}`:'—'}</td><td class="r num">${s.avg==null?'—':s.avg+'%'}</td><td class="num">${s.last?fmt(s.last):c.status==='Running'?'<span class="tag t-warn">Pending</span>':'—'}</td><td>${s.att!=null&&s.att<75?'<span class="tag t-bad">At risk</span>':''}</td></tr>`}).join('')}
     </tbody></table></div></div>`;
-  if (tab==='assignments') body = c.asg.length? `<div class="card"><div class="card-h"><h3>Assignments</h3><button class="btn sm primary" data-act="toast" data-t="Assignment form opens here">${ic('plus')}New assignment</button></div><div class="tbl-wrap"><table><thead><tr><th>Assignment</th><th>Due</th><th class="r">On time</th><th class="r">Late</th><th class="r">Missing</th><th class="r">Avg score</th></tr></thead><tbody>
+  if (tab==='assignments') body = c.asg.length? `<div class="card"><div class="card-h"><h2 class="h3">Assignments</h2><button class="btn sm primary" data-act="toast" data-t="Assignment form opens here">${ic('plus')}New assignment</button></div><div class="tbl-wrap"><table><thead><tr><th>Assignment</th><th>Due</th><th class="r">On time</th><th class="r">Late</th><th class="r">Missing</th><th class="r">Avg score</th></tr></thead><tbody>
     ${c.asg.map((a,i)=>{const subs=c.students.map(s=>s.subs[i]);const on=subs.filter(x=>x.st==='On time').length,la=subs.filter(x=>x.st==='Late').length,mi=subs.filter(x=>x.st==='Missing').length;const sc=subs.filter(x=>x.score!=null);const av2=sc.length?(sc.reduce((a,x)=>a+x.score,0)/sc.length).toFixed(1):'—';return `<tr><td><b style="font-weight:600">${esc(a.title)}</b><div class="demo-note">Assignment ${a.n} · out of ${a.max}</div></td><td class="num">${fmt(a.due)}</td><td class="r num">${on}</td><td class="r num">${la}</td><td class="r num">${mi?`<span class="tag t-bad">${mi}</span>`:'0'}</td><td class="r num"><b>${av2}</b> / ${a.max}</td></tr>`}).join('')}
     </tbody></table></div></div>` : `<div class="card"><div class="empty">No assignments yet. ${c.code} starts on ${fmtLong(c.start)} ${D(c.start).getFullYear()}.</div></div>`;
-  if (tab==='attendance') body = c.sess.length? `<div class="card"><div class="card-h"><h3>Attendance by session</h3><div class="toolbar"><button class="btn sm" data-act="upload">${ic('upload')}Bulk upload</button><button class="btn sm primary" data-act="toast" data-t="Attendance sheet opens for today's session">Mark attendance</button></div></div>
+  if (tab==='attendance') body = c.sess.length? `<div class="card"><div class="card-h"><h2 class="h3">Attendance by session</h2><div class="toolbar"><button class="btn sm" data-act="upload">${ic('upload')}Bulk upload</button><button class="btn sm primary" data-act="toast" data-t="Attendance sheet opens for today's session">Mark attendance</button></div></div>
     <div class="tbl-wrap"><table class="heat"><thead><tr><th>Student</th>${c.sess.map(x=>`<th title="${fmt(x.date)}">S${x.n}</th>`).join('')}<th class="r">Total</th></tr></thead><tbody>
     ${c.students.map(s=>`<tr class="click" data-act="student" data-id="${s.id}"><td style="white-space:nowrap">${esc(s.name)}</td>${s.attRec.map((v,i)=>`<td><span class="hcell" style="background:${ATT_C[v]}" title="${esc(s.name)}, S${i+1} ${fmt(c.sess[i].date)}: ${ATT_L[v]}">${v}</span></td>`).join('')}<td class="r num" style="color:${pctCol(s.att)}"><b>${s.att}%</b></td></tr>`).join('')}
     </tbody></table></div><div class="legend" style="padding:0 18px 14px">${Object.keys(ATT_C).map(k=>`<span><i style="background:${ATT_C[k]}"></i>${ATT_L[k]}</span>`).join('')}</div></div>` : `<div class="card"><div class="empty">Attendance opens with the first session on ${fmtLong(c.start)} ${D(c.start).getFullYear()}.</div></div>`;
@@ -1344,9 +1345,9 @@ function viewCohort(c){
       <div class="card stat"><span class="lbl">Submission rate</span><span class="val num">${st.sub}%</span><span class="sub">${c.asg.length} assignments</span></div>
       <div class="card stat"><span class="lbl">Average score</span><span class="val num">${st.score}%</span><span class="sub">Of maximum marks</span></div>
       <div class="card stat ${st.risk?'alert':''}"><span class="lbl">At-risk students</span><span class="val num">${st.risk}</span><span class="sub">Below 75% attendance</span></div></div>
-    <div class="grid g21"><div class="card"><div class="card-h"><h3>Attendance per session</h3><small>Share of students present or late</small></div><div class="card-b">${trendChart(c)}</div></div>
-      <div class="card"><div class="card-h"><h3>Score distribution</h3><small>Students by average score</small></div><div class="card-b">${histChart(c)}</div></div></div>
-    <div class="card"><div class="card-h"><h3>Students to watch</h3><small>Attendance below 75% or 2+ missing assignments</small></div><div class="list">${c.students.filter(s=>s.att<75||s.subs.filter(x=>x.st==='Missing').length>=2).map(s=>`<div class="item click" data-act="student" data-id="${s.id}" style="cursor:pointer"><span class="sev" style="background:var(--bad)"></span><div class="main-t"><b>${esc(s.name)}</b><div class="meta"><span>Attendance ${s.att}%</span><span>${s.subs.filter(x=>x.st==='Missing').length} missing</span><span>Last 1:1 ${s.last?fmt(s.last):'not this month'}</span></div></div><span class="btn sm">View</span></div>`).join('')||'<div class="empty">No students at risk</div>'}</div></div>` : `<div class="card"><div class="empty">Analytics appear once ${c.code} starts.</div></div>`;
+    <div class="grid g21"><div class="card"><div class="card-h"><h2 class="h3">Attendance per session</h2><small>Share of students present or late</small></div><div class="card-b">${trendChart(c)}</div></div>
+      <div class="card"><div class="card-h"><h2 class="h3">Score distribution</h2><small>Students by average score</small></div><div class="card-b">${histChart(c)}</div></div></div>
+    <div class="card"><div class="card-h"><h2 class="h3">Students to watch</h2><small>Attendance below 75% or 2+ missing assignments</small></div><div class="list">${c.students.filter(s=>s.att<75||s.subs.filter(x=>x.st==='Missing').length>=2).map(s=>`<div class="item click" data-act="student" data-id="${s.id}" style="cursor:pointer"><span class="sev" style="background:var(--bad)"></span><div class="main-t"><b>${esc(s.name)}</b><div class="meta"><span>Attendance ${s.att}%</span><span>${s.subs.filter(x=>x.st==='Missing').length} missing</span><span>Last 1:1 ${s.last?fmt(s.last):'not this month'}</span></div></div><span class="btn sm">View</span></div>`).join('')||'<div class="empty">No students at risk</div>'}</div></div>` : `<div class="card"><div class="empty">Analytics appear once ${c.code} starts.</div></div>`;
   return `<div class="page-head"><div><button class="btn ghost sm" data-act="cback" style="padding-left:0">← All cohorts</button><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><h1>${c.code}</h1>${statusTagC(c)}</div><p>${c.prog} · ${c.size} students · ${esc(UU(c.pm).name)}</p>${c.status==='Running'?kpiFeeds([4,7,8,12],'This cohort feeds'):''}</div><button class="btn" data-act="upload">${ic('upload')}Bulk upload</button></div>
   <div class="seg">${tabs.map(([k,l])=>`<button class="${tab===k?'on':''}" data-act="ctab" data-v="${k}">${l}</button>`).join('')}</div>${body}`;
 }
@@ -1381,7 +1382,7 @@ function drawerStudent(s){
   const avgFor = i => { const sc=c.students.map(x=>x.subs[i]).filter(x=>x.score!=null); return sc.length? sc.reduce((a,x)=>a+x.score,0)/sc.length : 0; };
   const w=460, rowH=34, l=150, X=v=>l+(w-l-36)*v/20, h=c.asg.length*rowH+24;
   const asgChart = c.asg.length? `<svg viewBox="0 0 ${w} ${h}" style="width:100%;display:block" role="img" aria-label="Assignment scores against cohort average">${c.asg.map((a,i)=>{const y=8+i*rowH,sc=s.subs[i],ca=avgFor(i);return `<text x="0" y="${y+14}" font-size="12" fill="var(--ink)">${esc(a.title.length>22?a.title.slice(0,21)+'…':a.title)}</text><rect x="${l}" y="${y+4}" width="${X(20)-l}" height="14" rx="4" fill="var(--surface-2)"/>${sc.score!=null?`<rect x="${l}" y="${y+4}" width="${X(sc.score)-l}" height="14" rx="4" fill="${sc.st==='Late'?'var(--warn)':'var(--accent)'}"/><text x="${X(20)+6}" y="${y+15}" font-size="12" font-weight="600" fill="var(--ink)">${sc.score}</text>`:`<text x="${l+8}" y="${y+15}" font-size="11.5" font-weight="600" fill="var(--bad)">Missing</text>`}<line x1="${X(ca)}" x2="${X(ca)}" y1="${y}" y2="${y+22}" stroke="var(--ink)" stroke-width="2"/>`}).join('')}</svg><div class="legend"><span><i style="background:var(--accent)"></i>On time</span><span><i style="background:var(--warn)"></i>Late</span><span><i style="background:var(--ink);width:2px"></i>Cohort average</span><span>Scores out of 20</span></div>`:'<div class="demo-note">No assignments yet.</div>';
-  return `<div class="scrim" data-act="close"><aside class="drawer" role="dialog" aria-label="Student profile" data-stop>
+  return `<div class="scrim" data-act="close"><div class="drawer" role="dialog" aria-label="Student profile" data-stop>
     <div class="drawer-h"><div style="flex:1"><div class="mono" style="color:var(--ink-3)">${s.id} · ${c.prog} · ${c.code}</div><h2>${esc(s.name)}</h2>${risk?'<span class="tag t-bad" style="margin-top:6px">At risk: attendance below 75%</span>':''}</div><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div>
     <div class="drawer-b">
       <div class="grid g2" style="gap:10px">
@@ -1394,7 +1395,7 @@ function drawerStudent(s){
       <div><div class="eyebrow" style="margin-bottom:10px">Assignment scores vs cohort average</div>${asgChart}</div>
       <div><div class="eyebrow" style="margin-bottom:10px">One-to-ones</div><div class="grid" style="gap:10px">${(s.last?[[s.last,'Monthly check-in logged']]:[]).concat(s.ones).map(([d,t])=>`<div class="comment">${av(c.pm)}<div><b>${esc(UU(c.pm).name)}</b> <small>${fmt(d)}</small><p>${esc(t)}</p></div></div>`).join('')||'<div class="demo-note">None yet.</div>'}</div></div>
       <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap"><button class="btn" data-act="toast" data-t="Student report exported (preview)">Export report</button><button class="btn primary" data-act="modal" data-m="oneone" data-id="${s.id}">${ic('chat')}Log 1:1</button></div>
-    </div></aside></div>`;
+    </div></div></div>`;
 }
 
 function uploadModal(){
@@ -1486,11 +1487,11 @@ function cohortSave(){
 /* ---------------- drawers & modals ---------------- */
 function drawerTask(t){
   const canEdit = t.owner===S.user || t.by===S.user || canConf();
-  return `<div class="scrim" data-act="close"><aside class="drawer" role="dialog" aria-label="Task detail" data-stop>
+  return `<div class="scrim" data-act="close"><div class="drawer" role="dialog" aria-label="Task detail" data-stop>
     <div class="drawer-h"><div style="flex:1"><div class="mono" style="color:var(--ink-3)">${t.id} · ${esc(t.cat)}</div><h2>${esc(t.title)}</h2></div><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div>
     <div class="drawer-b">
       <dl class="kv">
-        <dt>Status</dt><dd>${canEdit?`<select id="st-sel" class="select" data-id="${t.id}">${[['todo','Not started'],['doing','In progress'],['blocked','Blocked'],['done','Done']].map(([k,l])=>`<option value="${k}" ${t.status===k?'selected':''}>${l}</option>`).join('')}</select> ${isOverdue(t)?'<span class="tag t-bad" style="margin-left:6px">Overdue</span>':''}`:statusTag(t)}</dd>
+        <dt>Status</dt><dd>${canEdit?`<select id="st-sel" class="select" aria-label="Status" data-id="${t.id}">${[['todo','Not started'],['doing','In progress'],['blocked','Blocked'],['done','Done']].map(([k,l])=>`<option value="${k}" ${t.status===k?'selected':''}>${l}</option>`).join('')}</select> ${isOverdue(t)?'<span class="tag t-bad" style="margin-left:6px">Overdue</span>':''}`:statusTag(t)}</dd>
         <dt>Owner</dt><dd>${who(t.owner)}</dd>
         <dt>Assigned by</dt><dd>${who(t.by)}</dd>
         <dt>Due</dt><dd class="num">${fmtLong(t.due)}</dd>
@@ -1503,19 +1504,19 @@ function drawerTask(t){
       </div>
       <div class="field"><label for="cmt">Add an update</label><textarea id="cmt" placeholder="What changed? Use @ to mention someone."></textarea></div>
       <div style="display:flex;gap:8px;justify-content:flex-end"><button class="btn" data-act="toast" data-t="Attach a file (preview)">Attach file</button><button class="btn primary" data-act="comment" data-id="${t.id}">Post update</button></div>
-    </div></aside></div>`;
+    </div></div></div>`;
 }
 function drawerSession(s){
   const f = s.fac?FACULTY[s.fac]:null;
   const mine = s.pm===S.user || isMgr();
-  return `<div class="scrim" data-act="close"><aside class="drawer" role="dialog" aria-label="Session detail" data-stop>
+  return `<div class="scrim" data-act="close"><div class="drawer" role="dialog" aria-label="Session detail" data-stop>
     <div class="drawer-h"><div style="flex:1"><div class="mono" style="color:var(--ink-3)">${s.id} · ${esc(s.prog)}</div><h2>${esc(s.title)}</h2></div><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div>
     <div class="drawer-b">
       <dl class="kv"><dt>When</dt><dd class="num">${fmtLong(s.date)}, ${s.time}</dd><dt>Where</dt><dd>${s.mode} · ${s.zoom?`<a href="#" class="zlink">${esc(s.zoom.replace('https://','').split('?')[0])}</a>`:esc(s.venue)}${s.mode==='Hybrid'?` · ${esc(s.venue)}`:''}</dd><dt>Google Calendar</dt><dd>${s.cal?`<span class="tag t-good">Invite sent</span> <span class="demo-note">${s.zoom?'Zoom link in the invite, no Meet link':'Venue in the invite'}</span>`:'<span class="tag">Not on calendar</span>'}</dd><dt>Cohort</dt><dd>${esc(s.cohort)}</dd><dt>Faculty</dt><dd>${f?esc(f.name):'<span class="tag t-bad">Not assigned</span>'}</dd><dt>PM</dt><dd>${who(s.pm)}</dd></dl>
       <div><div class="eyebrow" style="margin-bottom:10px">Readiness checklist</div><div class="checklist">${CHECK_ITEMS.map((c,i)=>`<label><input type="checkbox" data-act="check" data-id="${s.id}" data-i="${i}" ${s.check[i]?'checked':''} ${mine?'':'disabled'}> ${c}</label>`).join('')}</div></div>
       <div><div class="eyebrow" style="margin-bottom:10px">Class notes</div>${s.notes?'<div class="card card-b" style="font-size:13px">Discussion centred on choosing successors on merit. Two families shared their transition plans. Follow-up: share the governance template with the cohort.</div>':dayDiff(s.date)<0?`<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span class="tag t-bad">Missing, due ${fmt(addWorkdays(s.date,2))}</span><button class="btn sm" data-act="modal" data-m="notes" data-id="${s.id}">Add notes</button></div>`:'<div class="demo-note">Notes open after the session.</div>'}</div>
       <div><div class="eyebrow" style="margin-bottom:10px">Payment</div><dl class="kv"><dt>Invoice</dt><dd>${payTag(s.pay.inv)}</dd><dt>Payment</dt><dd>${payTag(s.pay.paid)}</dd><dt>TDS</dt><dd>${payTag(s.pay.tds)}</dd><dt>Amount</dt><dd>${f&&f.senior?(canConf()?`<span class="tag t-warn">${ic('lock')} See Honorariums</span>`:`<span class="tag">${ic('lock')} Confidential</span>`):'Standard rate'}</dd></dl></div>
-    </div></aside></div>`;
+    </div></div></div>`;
 }
 // Class scheduling: PMs create the class once; Optimus writes the Google Calendar event with the Zoom link (online), the venue (offline) or both (hybrid). Google Meet is never added.
 SESSIONS.forEach((s,i)=>{ if (s.mode==='Online'){ s.zoom='https://zoom.us/j/8'+String(412093310+i*7713).slice(0,9)+'?pwd=Rv'+(i+3)+'x'; } s.cal = dayDiff(s.date)>-30; });
@@ -1611,17 +1612,69 @@ function render(){
   if (S.drawer){ const [k,id]=S.drawer; html += k==='task'?drawerTask(TASKS.find(t=>t.id===id)):k==='kpi'?drawerKpi(+id, S.drawer[2]):k==='fac'?drawerFaculty(id):k==='inv'?drawerInvoice(INVOICES.find(v=>v.id===id)):k==='student'?drawerStudent(COHORTS.flatMap(c=>c.students).find(s=>s.id===id)):drawerSession(SESSIONS.find(s=>s.id===id)); }
   if (S.up) html += uploadModal();
   if (S.modal) html += modal(S.modal[0], S.modal[1]);
-  if (S.toast) html += `<div class="toast" role="status">${esc(S.toast)}</div>`;
+  if (S.toast) html += `<div class="toast" aria-hidden="true">${esc(S.toast)}</div>`;
   const q = document.activeElement && document.activeElement.id==='q';
+  const prevKey = focusKey(document.activeElement), prevOverlay = A11Y.overlay;
   root.innerHTML = html;
   if (S.modal && S.modal[0]==='sched') schedPreview();
   if (S.modal && S.modal[0]==='invoice') invPreview();
   if (S.modal && S.modal[0]==='facform') facCalc();
   if (S.modal && S.modal[0]==='invrecv') recvSum();
   if (q){ const el=document.getElementById('q'); el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+  a11yAfter(q ? null : prevKey, prevOverlay);
 }
+
+/* ---------------- screen reader and keyboard support ----------------
+   The whole screen is redrawn after each action, so focus is put back where the person was,
+   moved into a form or panel when one opens, back to its button when it closes, and to the page
+   title when the page changes. Clickable rows and cards get keyboard focus; messages are announced. */
+const A11Y = {overlay:'', opener:null, view:null};
+const NATIVE = new Set(['BUTTON','A','INPUT','SELECT','TEXTAREA','LABEL','OPTION','SUMMARY']);
+const live = document.createElement('div'); live.className = 'sr-only'; live.setAttribute('aria-live','polite'); live.setAttribute('role','status'); document.body.appendChild(live);
+function announce(m){ live.textContent = ''; setTimeout(()=>{ live.textContent = m; }, 60); }
+function focusKey(el){
+  if (!el || el===document.body || !root.contains(el)) return null;
+  if (el.id) return '#'+CSS.escape(el.id);
+  const d = el.dataset || {};
+  if (!d.act) return null;
+  let sel = `[data-act="${CSS.escape(d.act)}"]`;
+  for (const k of ['v','m','id','n','p','u','t','q']) if (d[k]!=null) sel += `[data-${k}="${CSS.escape(d[k])}"]`;
+  return sel;
+}
+function a11yAfter(prevKey, prevOverlay){
+  root.querySelectorAll('[data-act]').forEach(e=>{ if (NATIVE.has(e.tagName) || e.classList.contains('scrim') || e.closest('svg')) return; e.tabIndex = 0; if (e.tagName!=='TR') e.setAttribute('role','button'); });
+  root.querySelectorAll('.tbl-wrap').forEach(e=>{ if (e.scrollWidth > e.clientWidth + 1){ e.tabIndex = 0; e.setAttribute('role','region'); e.setAttribute('aria-label','Table. Scroll sideways for more columns.'); } });
+  root.querySelectorAll('[role=dialog]').forEach(d=>d.setAttribute('aria-modal','true'));
+  root.querySelectorAll('.sc-err').forEach(e=>e.setAttribute('role','alert'));
+  const overlay = S.modal ? 'm:'+S.modal.join('|') : S.drawer ? 'd:'+S.drawer.join('|') : S.up ? 'u' : '';
+  A11Y.overlay = overlay;
+  const dlgs = root.querySelectorAll('[role=dialog]'), top = dlgs[dlgs.length-1];
+  if (overlay && overlay!==prevOverlay && top){
+    if (!prevOverlay) A11Y.opener = prevKey;
+    const field = S.modal ? top.querySelector('input:not([type=hidden]):not([disabled]):not([readonly]),select,textarea') : null;
+    const target = field || top.querySelector('h2') || top;
+    if (!field){ target.tabIndex = -1; }
+    target.focus(); return;
+  }
+  if (!overlay && prevOverlay){ const el = A11Y.opener && root.querySelector(A11Y.opener); A11Y.opener = null; if (el){ el.focus(); return; } }
+  if (S.view!==A11Y.view){ const first = A11Y.view===null; A11Y.view = S.view; const h = root.querySelector('main h1'); if (h && !first){ h.tabIndex = -1; h.focus(); } return; }
+  if (prevKey){ const el = root.querySelector(prevKey); if (el && el!==document.activeElement) el.focus(); }
+}
+document.addEventListener('keydown', e=>{
+  const t = e.target;
+  if ((e.key==='Enter' || e.key===' ') && t && t.dataset && t.dataset.act && !NATIVE.has(t.tagName) && root.contains(t)){ e.preventDefault(); t.click(); return; }
+  if (e.key==='Tab'){ // keep Tab inside an open form or panel
+    const dlgs = root.querySelectorAll('[role=dialog]'), top = dlgs[dlgs.length-1]; if (!top) return;
+    const f = [...top.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]):not([type=hidden]),select:not([disabled]),textarea:not([disabled]),[tabindex="0"]')].filter(x=>x.offsetParent!==null);
+    if (!f.length) return;
+    const first = f[0], last = f[f.length-1];
+    if (!top.contains(document.activeElement)){ e.preventDefault(); first.focus(); }
+    else if (e.shiftKey && document.activeElement===first){ e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement===last){ e.preventDefault(); first.focus(); }
+  }
+});
 let toastT;
-function toast(m){ S.toast=m; render(); clearTimeout(toastT); toastT=setTimeout(()=>{S.toast=null; if (S.modal && ['invoice','sched','facform','invrecv'].includes(S.modal[0])){ const t=document.querySelector('.toast'); if (t) t.remove(); } else render();},2200); }
+function toast(m){ S.toast=m; render(); announce(m); clearTimeout(toastT); toastT=setTimeout(()=>{S.toast=null; if (S.modal && ['invoice','sched','facform','invrecv'].includes(S.modal[0])){ const t=document.querySelector('.toast'); if (t) t.remove(); } else render();},2200); }
 
 root.addEventListener('click', e=>{
   if (e.target.closest('a[target="_blank"]')) return;
@@ -1693,6 +1746,7 @@ root.addEventListener('click', e=>{
     case 'admintab': S.adminTab=el.dataset.v; render(); break;
     case 'toast': toast(el.dataset.t); break;
     case 'notif': S.notif=!S.notif; render(); break;
+    case 'easy': { const r=document.documentElement, on=!r.hasAttribute('data-easy'); if (on) r.setAttribute('data-easy',''); else r.removeAttribute('data-easy'); try{localStorage.setItem('optimus-easy', on?'1':'0')}catch(_){} render(); toast(on?'Easy reading on. Larger text and stronger contrast on this device.':'Easy reading off'); break; }
     case 'theme': { const r=document.documentElement; const dark = r.dataset.theme ? r.dataset.theme==='dark' : matchMedia('(prefers-color-scheme: dark)').matches; r.dataset.theme = dark?'light':'dark'; break; }
   }
 });

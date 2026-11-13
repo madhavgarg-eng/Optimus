@@ -19,6 +19,13 @@ function art() {
 }
 function screen(inner) {
   root.innerHTML = `<div class="login">${art()}<section class="login-form"><div class="login-card">${inner}</div></section></div>`;
+  const card = root.querySelector('.login-card'), on = () => document.documentElement.hasAttribute('data-easy');
+  card.insertAdjacentHTML('beforeend', `<button class="btn ghost sm" id="easy" type="button" aria-pressed="${on()}" style="align-self:flex-start;padding-left:0">Easy reading: ${on() ? 'on' : 'off'} (larger text, stronger contrast)</button>`);
+  document.getElementById('easy').onclick = e => {
+    const r = document.documentElement; if (on()) r.removeAttribute('data-easy'); else r.setAttribute('data-easy', '');
+    try { localStorage.setItem('optimus-easy', on() ? '1' : '0'); } catch (_) {}
+    e.target.setAttribute('aria-pressed', on()); e.target.textContent = `Easy reading: ${on() ? 'on' : 'off'} (larger text, stronger contrast)`;
+  };
 }
 function message(title, body, withSignOut = true) {
   screen(`<div><div class="eyebrow">Optimus</div><h2 style="margin-top:6px">${esc(title)}</h2></div><p style="color:var(--ink-2);margin:0">${body}</p>

@@ -20,6 +20,7 @@ create table if not exists public.team_members (
   created_at timestamptz not null default now()
 );
 alter table public.team_members add column if not exists can_see_honorariums boolean not null default false;
+alter table public.team_members add column if not exists reports_to text;  -- key of the person they report to
 
 -- Starter team. CHANGE THE EMAILS to real ones (here, or later in Table Editor > team_members).
 insert into public.team_members (key, email, name, title, kind, color, can_see_honorariums) values

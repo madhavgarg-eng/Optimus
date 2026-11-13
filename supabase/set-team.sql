@@ -5,7 +5,7 @@
 --   Rajiv Gupta  Chairperson              chair               visible
 --   Neha Kadian  Senior Program Manager   head                visible
 --   Shivpriya    Program Manager          lead                visible
---   Priyanshi    Intern                   pm                  visible
+--   Priyanshi    Intern                   pm                  visible        (reports to Neha)
 --
 -- Access level decides which work someone sees. Honorarium access (faculty rates, totals, bank
 -- details, senior-faculty invoices) is a separate per-person switch, OFF for anyone added later
@@ -19,6 +19,7 @@ begin;
 
 -- 1. the honorarium switch
 alter table public.team_members add column if not exists can_see_honorariums boolean not null default false;
+alter table public.team_members add column if not exists reports_to text;  -- key of the person they report to
 
 -- 2. access rules and sign-up requests
 -- The DWM owner has every kind of access, whatever the hierarchy. Others see honorariums only if
@@ -83,18 +84,19 @@ revoke all on public.join_requests from anon;
 delete from public.team_members
 where key not in ('rajiv', 'neha', 'madhav', 'shivpriya', 'priyanshi');
 
-insert into public.team_members (key, email, name, title, kind, color, can_see_honorariums) values
-  ('rajiv',     'REPLACE_ME_rajiv@mastersunion.org',     'Rajiv Gupta', 'Chairperson',            'chair', '#111111', true),
-  ('neha',      'REPLACE_ME_neha@mastersunion.org',      'Neha Kadian', 'Senior Program Manager', 'head',  '#3B3B3B', true),
-  ('madhav',    'madhav.garg@mastersunion.org',          'Madhav Garg', 'DWM Owner',              'owner', '#5F5F5F', true),
-  ('shivpriya', 'REPLACE_ME_shivpriya@mastersunion.org', 'Shivpriya',   'Program Manager',        'lead',  '#404040', true),
-  ('priyanshi', 'REPLACE_ME_priyanshi@mastersunion.org', 'Priyanshi',   'Intern',                 'pm',    '#1D4ED8', true)
+insert into public.team_members (key, email, name, title, kind, color, can_see_honorariums, reports_to) values
+  ('rajiv',     'REPLACE_ME_rajiv@mastersunion.org',     'Rajiv Gupta', 'Chairperson',            'chair', '#111111', true, null),
+  ('neha',      'REPLACE_ME_neha@mastersunion.org',      'Neha Kadian', 'Senior Program Manager', 'head',  '#3B3B3B', true, null),
+  ('madhav',    'madhav.garg@mastersunion.org',          'Madhav Garg', 'DWM Owner',              'owner', '#5F5F5F', true, null),
+  ('shivpriya', 'REPLACE_ME_shivpriya@mastersunion.org', 'Shivpriya',   'Program Manager',        'lead',  '#404040', true, null),
+  ('priyanshi', 'REPLACE_ME_priyanshi@mastersunion.org', 'Priyanshi',   'Intern',                 'pm',    '#1D4ED8', true, 'neha')
 on conflict (key) do update
   set email = case when excluded.email like 'REPLACE_ME%' then public.team_members.email else excluded.email end,
       name = excluded.name, title = excluded.title, kind = excluded.kind, color = excluded.color,
-      can_see_honorariums = excluded.can_see_honorariums;
+      can_see_honorariums = excluded.can_see_honorariums,
+      reports_to = coalesce(excluded.reports_to, public.team_members.reports_to);
 
 commit;
 
-select key, name, title, kind, can_see_honorariums, email from public.team_members
+select key, name, title, kind, reports_to, can_see_honorariums, email from public.team_members
 order by array_position(array['chair','head','owner','lead','pm'], kind);

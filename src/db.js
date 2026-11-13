@@ -21,7 +21,7 @@ async function selectAll(table, columns, order) {
 }
 
 export async function loadWorkspace(email) {
-  const members = await selectAll('team_members', 'key,email,name,title,kind,color,can_see_honorariums', 'key');
+  const members = await selectAll('team_members', 'key,email,name,title,kind,color,can_see_honorariums,reports_to', 'key');
   const me = members.find(m => (m.email || '').toLowerCase() === email.toLowerCase());
   if (!me) {
     const { data: req, error } = await sb.from('join_requests').select('email,name,status,requested_at').maybeSingle();

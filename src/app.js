@@ -1228,7 +1228,7 @@ const canEditMember = id => isOwner(S.user) || (canManageUsers() && !isOwner(id)
 function usersTab(){
   const order = Object.keys(LEVELS);
   const ids = Object.keys(USERS).sort((a,b)=>order.indexOf(UU(a).kind)-order.indexOf(UU(b).kind) || UU(a).name.localeCompare(UU(b).name));
-  return `${requestsCard()}<div class="card"><div class="card-h"><h2 class="h3">People and access</h2>${canManageUsers()?`<button class="btn sm primary" data-act="modal" data-m="member">${ic('plus')}Add person</button>`:''}</div><div class="tbl-wrap"><table><thead><tr><th>Person</th><th>Title</th><th>Access level</th><th>Email</th><th>Honorariums</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>${ids.map(id=>{const u=UU(id), k=u.kind;return `<tr><td>${who(id)}</td><td>${esc(u.role)}</td><td><b style="font-weight:600">${esc((LEVELS[k]||[k])[0])}</b><div style="font-size:12px;color:var(--ink-3);max-width:34ch">${esc((LEVELS[k]||['',''])[1])}</div></td><td style="font-size:13px">${esc(u.email||'')}</td><td>${hasHon(id)?'<span class="tag t-good">Visible</span>':'<span class="tag">Masked</span>'}</td><td class="r">${canEditMember(id)?`<button class="btn sm" data-act="modal" data-m="member" data-id="${id}">Edit</button>${id!==S.user?` <button class="btn sm" data-act="modal" data-m="memberdel" data-id="${id}">Remove</button>`:''}`:''}</td></tr>`}).join('')}</tbody></table></div></div>
+  return `${requestsCard()}<div class="card"><div class="card-h"><h2 class="h3">People and access</h2>${canManageUsers()?`<button class="btn sm primary" data-act="modal" data-m="member">${ic('plus')}Add person</button>`:''}</div><div class="tbl-wrap"><table><thead><tr><th>Person</th><th>Title</th><th>Reports to</th><th>Access level</th><th>Email</th><th>Honorariums</th><th><span class="sr-only">Actions</span></th></tr></thead><tbody>${ids.map(id=>{const u=UU(id), k=u.kind;return `<tr><td>${who(id)}</td><td>${esc(u.role)}</td><td>${u.boss&&USERS[u.boss]?esc(UU(u.boss).name):'<span class="demo-note">—</span>'}</td><td><b style="font-weight:600">${esc((LEVELS[k]||[k])[0])}</b><div style="font-size:12px;color:var(--ink-3);max-width:34ch">${esc((LEVELS[k]||['',''])[1])}</div></td><td style="font-size:13px">${esc(u.email||'')}</td><td>${hasHon(id)?'<span class="tag t-good">Visible</span>':'<span class="tag">Masked</span>'}</td><td class="r">${canEditMember(id)?`<button class="btn sm" data-act="modal" data-m="member" data-id="${id}">Edit</button>${id!==S.user?` <button class="btn sm" data-act="modal" data-m="memberdel" data-id="${id}">Remove</button>`:''}`:''}</td></tr>`}).join('')}</tbody></table></div></div>
   <p class="demo-note">${isOwner(S.user)?'As DWM owner you can give any access level and change anyone.':canConf()?'Only a DWM owner can add or change DWM owners.':'Only people with honorarium access can give it, or change people who have it.'} New people can create their own account from the sign-in page, and the DWM owner approves it here. You can also add someone directly; they then set up their account with the email you entered.</p>`;
 }
 function requestsCard(){
@@ -1251,6 +1251,7 @@ function memberForm(id, req){
   const u = id ? UU(id) : {name:(req&&req.name)||'',role:'',kind:'pm',email:(req&&req.email)||''};
   return `<div class="grid memberf" style="gap:12px">
     <div class="grid g2"><div class="field"><label for="mb-n">Name</label><input id="mb-n" value="${esc(u.name)}"></div><div class="field"><label for="mb-t">Title</label><input id="mb-t" value="${esc(u.role)}" placeholder="e.g. Program Manager"></div></div>
+    <div class="field"><label for="mb-r">Reports to</label><select id="mb-r"><option value="">No one</option>${Object.keys(USERS).filter(k=>k!==id).sort((a,b)=>UU(a).name.localeCompare(UU(b).name)).map(k=>`<option value="${k}" ${u.boss===k?'selected':''}>${esc(UU(k).name)} · ${esc(UU(k).role)}</option>`).join('')}</select></div>
     <div class="field"><label for="mb-e">Work email (their sign-in)</label><input id="mb-e" type="email" value="${esc(u.email||'')}" ${req?'readonly':''}></div>
     <div class="field"><label for="mb-k">Access level</label><select id="mb-k">${grantable().map(k=>`<option value="${k}" ${k===u.kind?'selected':''}>${LEVELS[k][0]} · ${LEVELS[k][1]}</option>`).join('')}</select></div>
     ${canConf()?`<label id="mb-hl" style="display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line-2);border-radius:10px;padding:10px 12px;cursor:pointer"><input type="checkbox" id="mb-h" ${(id&&hasHon(id))||u.kind==='owner'?'checked':''} ${u.kind==='owner'?'disabled':''} style="margin-top:3px"><span><b>Can see honorariums</b><span style="display:block;font-size:12px;color:var(--ink-3)">Faculty rates, honorarium totals, bank details and senior-faculty invoices. Off for new people unless you tick it. Always on for a DWM owner.</span></span></label>`:`<div class="iv-ro">${ic('lock')} Honorariums stay hidden from this person. Only someone with honorarium access can switch it on.</div>`}
@@ -1261,17 +1262,17 @@ function memberForm(id, req){
 async function memberSave(id, btn){
   const req = btn.dataset.req ? REQUESTS.find(r=>r.email===btn.dataset.req) : null;
   const g=x=>document.getElementById(x), val=x=>g(x).value.trim();
-  const name=val('mb-n'), title=val('mb-t'), email=val('mb-e').toLowerCase(), kind=val('mb-k'), hon = kind==='owner' || (canConf() ? g('mb-h').checked : false);
+  const name=val('mb-n'), title=val('mb-t'), email=val('mb-e').toLowerCase(), kind=val('mb-k'), boss=val('mb-r'), hon = kind==='owner' || (canConf() ? g('mb-h').checked : false);
   const err = !name ? 'Add their name.' : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? 'Add a valid email address.' : Object.keys(USERS).some(k=>k!==id && (UU(k).email||'').toLowerCase()===email) ? 'Someone on the team already uses that email.' : !grantable().includes(kind) ? 'You cannot give that access level.' : (id===S.user && isOwner(id) && kind!=='owner' && !Object.keys(USERS).some(k=>k!==id && UU(k).kind==='owner')) ? 'Optimus needs at least one DWM owner. Make someone else DWM owner first.' : '';
   if (err){ g('mb-err').textContent = err; return; }
   let key = id;
   if (!key){ const base = (name.toLowerCase().split(/\s+/)[0].replace(/[^a-z0-9]/g,'') || 'user').slice(0,20); key = base; let n=2; while (USERS[key]) key = base + n++; }
-  const row = {key, name, title, email, kind, can_see_honorariums: hon, color: (USERS[key]&&USERS[key].color) || '#525252'};
+  const row = {key, name, title, email, kind, reports_to: boss || null, can_see_honorariums: hon, color: (USERS[key]&&USERS[key].color) || '#525252'};
   btn.disabled = true; btn.textContent = 'Saving…';
   try {
     if (!db.demo) await db.saveMember(row);
     if (req){ if (!db.demo) { try { await db.clearRequest(req.email); } catch(e){ console.error(e); } } REQUESTS.splice(REQUESTS.indexOf(req),1); }
-    USERS[key] = {name, role:title, kind, color:row.color, email, hon};
+    USERS[key] = {name, role:title, kind, color:row.color, email, hon, boss};
     PMS.length = 0; PMS.push(...Object.keys(USERS).filter(k=>USERS[k].kind==='pm'));
     AUDIT.unshift([nowStamp(), S.user, id?'edited person':req?'approved sign-up':'added person', `${name} · ${LEVELS[kind][0]}${hon?' · honorariums visible':''}`]);
     S.modal = null; toast(id ? `${name} updated` : req ? `${name} approved. They can sign in now.` : `${name} added. They can now set up their account.`);
@@ -1862,7 +1863,7 @@ root.addEventListener('click', e=>{
     case 'toast': toast(el.dataset.t); break;
     case 'notif': S.notif=!S.notif; render(); break;
     case 'easy': { const r=document.documentElement, on=!r.hasAttribute('data-easy'); if (on) r.setAttribute('data-easy',''); else r.removeAttribute('data-easy'); try{localStorage.setItem('optimus-easy', on?'1':'0')}catch(_){} render(); toast(on?'Easy reading on. Larger text and stronger contrast on this device.':'Easy reading off'); break; }
-    case 'theme': { const r=document.documentElement; const dark = r.dataset.theme ? r.dataset.theme==='dark' : matchMedia('(prefers-color-scheme: dark)').matches; r.dataset.theme = dark?'light':'dark'; break; }
+    case 'theme': { const r=document.documentElement; const next = r.dataset.theme==='dark' ? 'light' : 'dark'; r.dataset.theme = next; try{localStorage.setItem('optimus-theme', next)}catch(_){} announce(next==='dark'?'Dark theme':'Light theme'); break; }
   }
 });
 root.addEventListener('change', e=>{

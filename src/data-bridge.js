@@ -1,6 +1,9 @@
 // Connects the Optimus UI state to the database: loads it in, and saves whatever changed.
 const safeName = n => String(n || 'file').replace(/[^A-Za-z0-9._-]+/g, '_').slice(-120);
 const key = r => r.collection + '|' + r.id;
+// Items people can delete in the app, and that are shared live between people (re-read every minute).
+const SHARED = ['notes', 'notes_private', 'mentions'];
+const isShared = k => SHARED.includes(k.split('|')[0]);
 
 export function setupData(db, B) {
   if (db.demo) { B.render(); return; }
@@ -9,12 +12,13 @@ export function setupData(db, B) {
   Object.keys(B.users).forEach(k => delete B.users[k]);
   B.pms.length = 0;
   for (const m of db.members) {
-    B.users[m.key] = { name: m.name, role: m.title || '', kind: m.kind, color: m.color || '#525252' };
+    B.users[m.key] = { name: m.name, role: m.title || '', kind: m.kind, color: m.color || '#525252', email: m.email || '', hon: !!m.can_see_honorariums, boss: m.reports_to || '' };
     if (m.kind === 'pm') B.pms.push(m.key);
   }
 
-  const seeding = db.rows.length === 0;
-  if (!seeding) B.hydrate(db.rows);
+  // Production never loads the prototype's sample data: an empty database means an empty workspace.
+  const seeding = false;
+  B.hydrate(db.rows);
   B.audit.length = 0;
   B.audit.push(...db.audit);
   B.login(db.me);
@@ -52,6 +56,13 @@ export function setupData(db, B) {
       if (blind.length) await db.saveRows(blind, true);
       readable.forEach(r => snap.set(key(r), JSON.stringify(r)));
       blind.forEach(r => blindSent.add(key(r)));
+      // notes and mentions removed in the app are deleted in the database
+      const present = new Set(rows.map(key));
+      const gone = [...snap.keys()].filter(k => isShared(k) && !present.has(k));
+      if (gone.length && db.deleteRows) {
+        await db.deleteRows(gone.map(k => { const i = k.indexOf('|'); return { collection: k.slice(0, i), id: k.slice(i + 1) }; }));
+        gone.forEach(k => snap.delete(k));
+      }
       // 3. new activity-log entries (the app adds them to the front)
       if (B.audit.length > auditLen) {
         const fresh = B.audit.slice(0, B.audit.length - auditLen).reverse();
@@ -70,6 +81,29 @@ export function setupData(db, B) {
   }
   function schedule() { clearTimeout(timer); timer = setTimeout(sync, 400); }
 
+  // Pick up notes and mentions other people added, without a reload. Local edits not yet saved win.
+  let pulling = false;
+  async function pull() {
+    if (pulling || running || !db.fetchRows) return;
+    pulling = true;
+    try {
+      const server = await db.fetchRows(SHARED);
+      const local = B.collect();
+      const localByKey = new Map(local.map(r => [key(r), r]));
+      const dirty = new Set(local.filter(r => isShared(key(r)) && snap.get(key(r)) !== JSON.stringify(r)).map(key));
+      [...snap.keys()].filter(k => isShared(k) && !localByKey.has(k)).forEach(k => dirty.add(k)); // deleted here, not yet sent
+      const changed = B.mergeShared(server, dirty);
+      const after = B.collect();
+      const afterKeys = new Set(after.map(key));
+      for (const r of after) if (isShared(key(r)) && !dirty.has(key(r))) snap.set(key(r), JSON.stringify(r));
+      [...snap.keys()].filter(k => isShared(k) && !afterKeys.has(k) && !dirty.has(k)).forEach(k => snap.delete(k));
+      if (changed) B.refresh();
+    } catch (e) { console.warn('Refresh failed', e); }
+    finally { pulling = false; }
+  }
+  setInterval(pull, 60000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) pull(); });
+
   document.addEventListener('click', schedule);
   document.addEventListener('change', schedule);
   document.addEventListener('keyup', e => { if (e.key === 'Escape' || e.key === 'Enter') schedule(); });
@@ -77,5 +111,4 @@ export function setupData(db, B) {
   window.addEventListener('beforeunload', e => { if (running || failed) { e.preventDefault(); e.returnValue = ''; } });
 
   B.render();
-  if (seeding) { B.toast('Setting up your workspace with the starter data…'); sync(); }
 }

@@ -1,0 +1,10 @@
+import { PGlite } from '@electric-sql/pglite';
+import fs from 'node:fs';
+const db = new PGlite();
+await db.exec(`create role anon; create role authenticated; create schema auth; create function auth.jwt() returns jsonb language sql stable as $$ select '{}'::jsonb $$;
+create schema storage; create table storage.buckets(id text primary key, name text, public bool, file_size_limit bigint, allowed_mime_types text[]); create table storage.objects(id serial, bucket_id text, name text); alter table storage.objects enable row level security;`);
+await db.exec(fs.readFileSync(new URL('../supabase/schema.sql', import.meta.url), 'utf8'));
+await db.exec(`insert into records(collection,id,data) values ('tasks','T-1042','{}'),('tasks','T-LX9ABC','{"real":1}'),('faculty','f3','{}'),('faculty_private','f3','{}'),('faculty','fLX9','{}'),('cohorts','OPMC2','{}'),('cohorts','OPMC4','{}'),('settings','kq','{}'),('settings','invnext','{}'),('honoraria','f1|S-311','{}'),('invoices','IV-44','{}')`);
+const r = await db.exec(fs.readFileSync(new URL('../supabase/remove-sample-data.sql', import.meta.url), 'utf8'));
+console.log(r.at(-1).rows);
+console.log((await db.query('select collection,id from records order by 1,2')).rows);

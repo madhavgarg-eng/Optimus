@@ -1,5 +1,5 @@
 import './style.css';
-import { configured, sb, loadWorkspace, saveRows, addAudit, upload, fileUrl, fileBlob, saveMember, removeMember, requestAccess, declineRequest, clearRequest } from './db.js';
+import { configured, sb, loadWorkspace, saveRows, addAudit, upload, fileUrl, fileBlob, saveMember, removeMember, requestAccess, declineRequest, clearRequest, deleteRows, fetchRows } from './db.js';
 import { bootOptimus } from './app.js';
 
 const root = document.getElementById('root');
@@ -149,7 +149,7 @@ async function start() {
   bootOptimus({
     demo: false, status: '', me: ws.me.key, members: ws.members, rows: ws.rows, audit: ws.audit,
     requests: ws.requests || [],
-    signOut, saveRows, addAudit, upload, fileUrl, fileBlob, saveMember, removeMember, declineRequest, clearRequest
+    signOut, saveRows, addAudit, upload, fileUrl, fileBlob, saveMember, removeMember, declineRequest, clearRequest, deleteRows, fetchRows
   });
 }
 

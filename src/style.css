@@ -381,3 +381,26 @@ h1[tabindex="-1"]:focus{outline:none}
 .stu-search{max-width:520px;flex:1 1 320px}
 .stu-search input{border:0;background:none;outline:none;width:100%}
 .search:focus-within{outline:2px solid var(--accent);outline-offset:2px}
+/* Notes board */
+:root{--n-yellow:#FFF4BF;--n-blue:#DCEBFF;--n-green:#DDF3E2;--n-pink:#FBE1EA;--n-grey:#ECECEA}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--n-yellow:#3A3314;--n-blue:#16263F;--n-green:#15301E;--n-pink:#3A1A26;--n-grey:#262626}}
+:root[data-theme="dark"]{--n-yellow:#3A3314;--n-blue:#16263F;--n-green:#15301E;--n-pink:#3A1A26;--n-grey:#262626}
+.note-c-yellow{background:var(--n-yellow)}.note-c-blue{background:var(--n-blue)}.note-c-green{background:var(--n-green)}.note-c-pink{background:var(--n-pink)}.note-c-grey{background:var(--n-grey)}
+.note-board{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px}
+.note{border-radius:12px;border:1px solid var(--line);box-shadow:var(--shadow);min-width:0}
+.note.note-new{outline:2px solid var(--accent);outline-offset:2px}
+.note-open{all:unset;box-sizing:border-box;display:flex;flex-direction:column;gap:8px;width:100%;height:100%;min-height:150px;padding:14px 16px;cursor:pointer;color:var(--ink)}
+.note-open:focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:12px}
+.note-top{display:flex;gap:6px;flex-wrap:wrap}
+.note-top .tag{background:color-mix(in srgb,var(--surface) 70%,transparent)}
+.note-title{font-family:var(--f-display);font-size:16px;font-weight:600;line-height:1.3}
+.note-body{white-space:pre-wrap;word-break:break-word;font-size:14px;color:var(--ink);display:-webkit-box;-webkit-line-clamp:8;-webkit-box-orient:vertical;overflow:hidden;flex:1}
+.note-foot{font-size:12px;color:var(--ink-2)}
+.mention{color:var(--accent);font-weight:700}
+.note-tagbar{display:flex;flex-direction:column;gap:6px}
+.note-tags{display:flex;gap:6px;flex-wrap:wrap}
+.note-radio{border:0;padding:0;margin:0;display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+.note-radio legend{font-weight:600;font-size:13px;margin-bottom:6px;padding:0}
+.note-radio label{display:inline-flex;gap:6px;align-items:center}
+.note-sw{border:1px solid var(--line-2);border-radius:999px;padding:3px 10px}
+.count-inline{background:var(--bad);color:#fff;border-radius:999px;padding:0 6px;font-size:11px;font-weight:700}

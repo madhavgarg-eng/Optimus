@@ -216,6 +216,9 @@ const STATES = ['Haryana','Delhi','Maharashtra','Karnataka','Kerala','Tamil Nadu
 const facParty = id => { const f=FACULTY[id]; return {name:f.name,addr:f.city,gstin:'',pan:'XXXXX'+String(1000+Object.keys(FACULTY).indexOf(id)*37).slice(0,4)+'X',state:({Bengaluru:'Karnataka',Mumbai:'Maharashtra',Delhi:'Delhi',Kochi:'Kerala',Gurugram:'Haryana',Pune:'Maharashtra',Chennai:'Tamil Nadu',Jaipur:'Rajasthan'})[f.city]||'Other',email:''}; };
 const facBank = id => ({name:FACULTY[id].name,bank:'Bank on file',acct:'XXXXXXXX'+String(4021+Object.keys(FACULTY).indexOf(id)*13),ifsc:'On file'});
 
+// Notes board. vis 'team' = everyone on the team, 'me' = only the author. MENTIONS = "@Name" tags in team notes.
+let NOTES = [];
+let MENTIONS = [];
 let INVOICES = [
   {id:'IV-41',no:'REV/26-27/0041',type:'sales',date:'2026-09-08',due:'2026-09-23',from:REV_PARTY,to:MU_PARTY,cohort:'OPMC2',session:null,items:[{d:'Programme delivery: OPMC2 Residency 2 (Gurugram), 3 days',sac:'999293',q:1,r:420000}],gst:18,tds:10,notes:'Payment within 15 days of invoice date.',status:'sent',pays:[{date:'2026-09-21',amt:453600,tds:42000,ref:'UTR HDFCN26264418822'}],pm:'ananya',by:'neha'},
   {id:'IV-42',no:'REV/26-27/0042',type:'sales',date:'2026-09-20',due:'2026-10-05',from:REV_PARTY,to:MU_PARTY,cohort:'EBAPC1',session:null,items:[{d:'Programme delivery: EBAPC1 Module 4, 6 online sessions',sac:'999293',q:6,r:38000},{d:'Programme management fee, September',sac:'999293',q:1,r:45000}],gst:18,tds:10,notes:'Payment within 15 days of invoice date.',status:'sent',pays:[],pm:'karan',by:'neha'},
@@ -672,6 +675,8 @@ const BRIDGE = {
     COHORTS.forEach(c => put('cohorts', c.code, c.pm, false, c));
     HONORARIA.forEach(h => put('honoraria', h.fac+'|'+h.session, null, true, h));
     INVOICES.forEach(v => { const d = {...v}; if (d.att){ const {blob, url, ...a} = d.att; d.att = a; } put('invoices', v.id, v.pm, invConf(v), d); });
+    NOTES.forEach(n => put(n.vis==='me' ? 'notes_private' : 'notes', n.id, n.owner, false, n));
+    MENTIONS.forEach(m => put('mentions', m.id, m.by, false, m));
     put('settings', 'kstate', null, false, KSTATE);
     put('settings', 'kq', null, false, KQ);
     put('settings', 'invnext', null, false, invNext);
@@ -693,7 +698,22 @@ const BRIDGE = {
     const swap = (obj, val) => { if (!val) return; Object.keys(obj).forEach(k=>delete obj[k]); Object.assign(obj, val); };
     swap(KSTATE, setting('kstate') || {Q3:{}, Q4:{}}); swap(KQ, setting('kq') || {Q3:{}, Q4:{}}); swap(invNext, setting('invnext') || {sales:1, faculty:1});
     STUDENTS = COHORTS.filter(c=>c.status==='Running').flatMap(c=>c.students||[]);
+    NOTES = [...by('notes'), ...by('notes_private')].map(r=>r.data);
+    MENTIONS = by('mentions').map(r=>r.data);
   },
+  // newer notes and mentions from the database; items changed here and not yet saved are kept as they are
+  mergeShared(rows, dirty){
+    const k = (c, id) => c + '|' + id;
+    const before = JSON.stringify([NOTES, MENTIONS]);
+    const keepN = NOTES.filter(n => dirty.has(k(n.vis==='me'?'notes_private':'notes', n.id)));
+    const keepM = MENTIONS.filter(m => dirty.has(k('mentions', m.id)));
+    const srvN = rows.filter(r => (r.collection==='notes' || r.collection==='notes_private') && !dirty.has(k(r.collection, r.id)) && !keepN.some(n=>n.id===r.id)).map(r=>r.data);
+    const srvM = rows.filter(r => r.collection==='mentions' && !dirty.has(k(r.collection, r.id))).map(r=>r.data);
+    NOTES = [...keepN, ...srvN];
+    MENTIONS = [...keepM, ...srvM.filter(m => !keepM.some(x=>x.id===m.id))];
+    return JSON.stringify([NOTES, MENTIONS]) !== before;
+  },
+  refresh(){ const a = document.activeElement; if (!S.modal && !S.drawer && !(a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))) render(); else S.stale = true; },
   login(key){
     S.user = key; S.view = UU(key).kind==='pm' ? 'myday' : 'overview';
     S.taskScope = UU(key).kind==='chair' ? 'assigned' : 'mine';
@@ -781,6 +801,7 @@ function navFor(){
   items.push(['faculty','Faculty','people']);
   items.push(['students','Students','cap']);
   items.push(['kpis', k==='pm'?'My KPIs':'KPIs','chart']);
+  items.push(['notes','Notes','note',unseenMentions().length]);
   if (k!=='pm') items.push(['payments','Payments','wallet']);
   items.push(['invoices','Invoices','receipt',visibleInvoices().filter(v=>invStatus(v)==='Overdue').length]);
   if (k!=='pm') items.push(['reports','Reports','file']);
@@ -825,7 +846,7 @@ function shell(content){
     <div class="brand"><span class="brand-mark">O</span>Optimus</div>
     <nav class="nav" aria-label="Main">
       <div class="nav-label">Workspace</div>
-      ${nav.map(([k,l,i,c])=>`<button class="${S.view===k?'on':''}" data-act="go" data-v="${k}" ${S.view===k?'aria-current="page"':''}>${ic(i)}<span>${l}</span>${c?`<span class="count"><span class="sr-only">, </span>${c}<span class="sr-only"> ${k==='admin'?'waiting for approval':'overdue'}</span></span>`:''}</button>`).join('')}
+      ${nav.map(([k,l,i,c])=>`<button class="${S.view===k?'on':''}" data-act="go" data-v="${k}" ${S.view===k?'aria-current="page"':''}>${ic(i)}<span>${l}</span>${c?`<span class="count"><span class="sr-only">, </span>${c}<span class="sr-only"> ${k==='admin'?'waiting for approval':k==='notes'?'new mentions':'overdue'}</span></span>`:''}</button>`).join('')}
     </nav>
     <div class="rail-foot">
       <div class="me">${av(S.user)}<div><b>${esc(u.name)}</b><small>${esc(u.role)}</small></div></div>
@@ -839,8 +860,8 @@ function shell(content){
       ${db.demo?'<span class="demo-pill">Preview · sample data</span>':(db.status?`<span class="demo-pill">${esc(db.status)}</span>`:'')}
       <button class="iconbtn easy-btn" data-act="easy" aria-pressed="${document.documentElement.hasAttribute('data-easy')}" title="Easy reading: larger text and stronger contrast">Aa</button><button class="iconbtn" data-act="theme" aria-label="Toggle theme">${ic('moon')}</button>
       <div style="position:relative">
-        <button class="iconbtn" data-act="notif" aria-label="Notifications">${ic('bell')}${notifs.length?'<span class="dot"></span>':''}</button>
-        ${S.notif?`<div class="card notif"><div class="card-h"><h2 class="h3">Notifications</h2><small>${notifs.length}</small></div><div class="list">${notifs.map(n=>`<div class="item"><span class="sev" style="background:var(--${n[0]})"></span><div class="main-t"><b style="font-weight:500">${n[1]}</b><div class="meta">${n[2]}</div></div></div>`).join('')}</div></div>`:''}
+        <button class="iconbtn" data-act="notif" aria-label="Notifications${notifs.length?`, ${notifs.length} new`:''}" aria-expanded="${!!S.notif}">${ic('bell')}${notifs.length?'<span class="dot"></span>':''}</button>
+        ${S.notif?`<div class="card notif"><div class="card-h"><h2 class="h3">Notifications</h2><small>${notifs.length}</small></div><div class="list">${notifs.length?notifs.map(n=>`<div class="item${n[3]?' click':''}" ${n[3]||''}><span class="sev" style="background:var(--${n[0]})"></span><div class="main-t"><b style="font-weight:500">${n[1]}</b><div class="meta">${n[2]}</div></div></div>`).join(''):'<div class="empty">Nothing new</div>'}</div></div>`:''}
       </div>
       <button class="iconbtn mobile-only" data-act="logout" aria-label="Switch person">${av(S.user)}</button>
     </header>
@@ -856,7 +877,8 @@ function notifications(){
   mine.filter(t=>t.status!=='done' && dayDiff(t.due)>=0 && dayDiff(t.due)<=2).slice(0,2).forEach(t=>out.push(['warn',esc(t.title),dueText(t.due)]));
   if (UU(S.user).kind==='pm' && kstate('Q3',S.user)==='Ready for review') out.unshift(['info','Your Q3 KPI scorecard is ready. Review and sign it by 30 Oct.','KPIs · today']);
   if (pendingReqs().length) out.unshift(['info',`${pendingReqs().length===1?esc(pendingReqs()[0].name||pendingReqs()[0].email)+' is':pendingReqs().length+' people are'} waiting for you to approve their Optimus account.`,'Admin · People and access']);
-  if (UU(S.user).kind==='chair') out.unshift(['info','Ananya Sharma signed her Q3 KPI scorecard. Approve and lock it by 30 Oct.','KPIs · today']);
+  if (db.demo && UU(S.user).kind==='chair') out.unshift(['info','Ananya Sharma signed her Q3 KPI scorecard. Approve and lock it by 30 Oct.','KPIs · today']);
+  unseenMentions().slice().reverse().forEach(m=>{ const n = NOTES.find(x=>x.id===m.note); if (n) out.unshift(['accent',`${esc(UU(m.by).name)} mentioned you in “${esc(noteTitle(n))}”`,`Notes · ${noteWhen(m.at)}`,`data-act="noteopen" data-id="${esc(n.id)}"`]); });
   return out;
 }
 
@@ -1045,6 +1067,86 @@ function payTag(v){ const m={Paid:'t-good',Deducted:'t-good',Received:'t-info',P
 // Student search: name, email, phone, company, student ID or cohort. Phone numbers match on digits alone, so +91 98100 00000 matches 9810000000.
 const stuMatch = (s, q) => { const t = q.trim().toLowerCase(); if (!t) return true; const d = t.replace(/\D/g,'');
   return t.split(/\s+/).every(w => [s.name, s.email, s.company, s.id, s.cohort, s.phone].some(v => String(v||'').toLowerCase().includes(w))) || (d.length >= 4 && String(s.phone||'').replace(/\D/g,'').includes(d)); };
+/* ---------------- notes board ---------------- */
+const NOTE_COLORS = {yellow:'Yellow', blue:'Blue', green:'Green', pink:'Pink', grey:'Grey'};
+const noteTitle = n => n.title || (n.body||'').split('\n')[0].slice(0,60) || 'Untitled note';
+const noteWhen = iso => { try { const d = new Date(iso); return d.toLocaleDateString('en-IN',{day:'numeric',month:'short'})+', '+d.toTimeString().slice(0,5); } catch(_) { return ''; } };
+const visibleNotes = () => NOTES.filter(n => n.vis==='team' || n.owner===S.user);
+const canEditNote = n => n.owner===S.user || (n.vis==='team' && isOwner(S.user));
+const unseenMentions = () => MENTIONS.filter(m => m.to===S.user && !m.seen && NOTES.some(n=>n.id===m.note && n.vis==='team'));
+// "@Shivpriya", "@shivpriya" or "@NehaKadian" all find the person. Returns their keys.
+function noteMentions(body){
+  const out = new Set(), people = Object.keys(USERS);
+  for (const m of String(body||'').matchAll(/@([A-Za-z][A-Za-z.\-]*)/g)) {
+    const w = m[1].toLowerCase().replace(/[.\-]+$/,'');
+    const k = people.find(p => p.toLowerCase()===w || UU(p).name.toLowerCase().split(' ')[0]===w || UU(p).name.toLowerCase().replace(/\s+/g,'')===w);
+    if (k) out.add(k);
+  }
+  return [...out];
+}
+const noteBodyHtml = body => esc(body||'').replace(/@([A-Za-z][A-Za-z.\-]*)/g, (all, w) => noteMentions(all).length ? `<b class="mention">${all}</b>` : all);
+function viewNotes(){
+  const f = S.noteF || 'all';
+  let list = visibleNotes();
+  if (f==='team') list = list.filter(n=>n.vis==='team');
+  if (f==='me') list = list.filter(n=>n.vis==='me');
+  if (f==='mentions') list = list.filter(n=>n.vis==='team' && MENTIONS.some(m=>m.note===n.id && m.to===S.user));
+  list = list.slice().sort((a,b)=>(b.pinned?1:0)-(a.pinned?1:0) || String(b.updated).localeCompare(String(a.updated)));
+  const unseen = new Set(unseenMentions().map(m=>m.note));
+  const seg = [['all','All'],['team','Team notes'],['me','Only me'],['mentions','Mentions me']].map(([k,l])=>`<button class="${f===k?'on':''}" data-act="notef" data-v="${k}" aria-pressed="${f===k}">${l}${k==='mentions'&&unseen.size?` <span class="count-inline">${unseen.size}</span>`:''}</button>`).join('');
+  return `<div class="page-head"><div><h1>Notes</h1><p>Your whiteboard. Team notes are visible to everyone on the team. Notes marked Only me are visible to you alone. Type @ and a name to tag someone, and they get a notification.</p></div><button class="btn primary" data-act="notenew">${ic('plus')}New note</button></div>
+  <div class="toolbar"><div class="seg" role="group" aria-label="Show notes">${seg}</div></div>
+  ${list.length?`<ul class="note-board" aria-label="Notes">${list.map(n=>`<li class="note note-c-${n.color||'yellow'}${unseen.has(n.id)?' note-new':''}"><button class="note-open" data-act="noteopen" data-id="${esc(n.id)}"><span class="note-top">${n.pinned?'<span class="tag plain">Pinned</span>':''}${n.vis==='me'?`<span class="tag plain">${ic('lock')}Only me</span>`:'<span class="tag plain">Team</span>'}${unseen.has(n.id)?'<span class="tag t-accent">You were mentioned</span>':''}</span><b class="note-title">${esc(noteTitle(n))}</b><span class="note-body">${noteBodyHtml((n.body||'').slice(0,420))}${(n.body||'').length>420?'…':''}</span><span class="note-foot">${esc(UU(n.owner).name)} · ${noteWhen(n.updated)}</span></button></li>`).join('')}</ul>`
+  :`<div class="card"><div class="empty">${f==='all'?'No notes yet. Click New note to start your board.':f==='mentions'?'No one has mentioned you in a note yet.':'No notes here yet.'}</div></div>`}`;
+}
+let NOTE_DRAFT = null; // {id|null, vis, color}
+function noteForm(n){
+  const v = n || {title:'', body:'', vis:'team', color:'yellow', pinned:false};
+  return `<div class="grid notef" style="gap:12px">
+    <div class="field"><label for="nt-t">Title <span style="font-weight:400;color:var(--ink-3)">(optional)</span></label><input id="nt-t" value="${esc(v.title||'')}" maxlength="120"></div>
+    <div class="field"><label for="nt-b">Note</label><textarea id="nt-b" rows="9" aria-describedby="nt-tag-help nt-who">${esc(v.body||'')}</textarea></div>
+    <div class="note-tagbar"><span id="nt-tag-help" class="demo-note">Type @ and a name to tag someone, for example @${esc(UU(Object.keys(USERS).find(k=>k!==S.user)||S.user).name.split(' ')[0])}. Or add a tag:</span><span class="note-tags">${Object.keys(USERS).filter(k=>k!==S.user).map(k=>`<button type="button" class="btn sm ghost" data-act="notetag" data-id="${k}">@${esc(UU(k).name.split(' ')[0])}</button>`).join('')}</span></div>
+    <div id="nt-who" class="demo-note" aria-live="polite" style="margin:0"></div>
+    <fieldset class="note-radio"><legend>Who can see this note</legend>
+      <label><input type="radio" name="nt-v" value="team" ${v.vis!=='me'?'checked':''}> Whole team</label>
+      <label><input type="radio" name="nt-v" value="me" ${v.vis==='me'?'checked':''}> Only me ${ic('lock')}</label></fieldset>
+    <fieldset class="note-radio"><legend>Colour</legend>${Object.entries(NOTE_COLORS).map(([k,l])=>`<label class="note-sw note-c-${k}"><input type="radio" name="nt-c" value="${k}" ${(v.color||'yellow')===k?'checked':''}> ${l}</label>`).join('')}</fieldset>
+    <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="nt-p" ${v.pinned?'checked':''}> Pin to the top of the board</label>
+    <span class="sc-err" id="nt-err"></span>
+  </div>`;
+}
+function noteWho(){
+  const b = document.getElementById('nt-b'), out = document.getElementById('nt-who'); if (!b || !out) return;
+  const vis = (document.querySelector('input[name="nt-v"]:checked')||{}).value;
+  const who = noteMentions(b.value).filter(k=>k!==S.user);
+  out.textContent = !who.length ? '' : vis==='me' ? `Only you can see this note, so ${who.map(k=>UU(k).name.split(' ')[0]).join(', ')} will not be notified. Choose Whole team to tag them.` : `Will notify: ${who.map(k=>UU(k).name).join(', ')}`;
+}
+function noteView(n){
+  const m = MENTIONS.filter(x=>x.note===n.id).map(x=>UU(x.to).name);
+  return `<div class="grid" style="gap:12px"><div class="note note-c-${n.color||'yellow'}" style="padding:16px"><div class="note-body" style="-webkit-line-clamp:unset;display:block">${noteBodyHtml(n.body)||'<span class="demo-note">No text</span>'}</div></div>
+    <p class="demo-note" style="margin:0">${n.vis==='me'?'Only you can see this note.':'Visible to the whole team.'} Written by ${esc(UU(n.owner).name)} · last changed ${noteWhen(n.updated)}${m.length?` · tags ${m.map(esc).join(', ')}`:''}</p></div>`;
+}
+function noteSave(id){
+  const g = x=>document.getElementById(x);
+  const title = g('nt-t').value.trim(), body = g('nt-b').value.replace(/\s+$/,''), vis = document.querySelector('input[name="nt-v"]:checked').value, color = document.querySelector('input[name="nt-c"]:checked').value, pinned = g('nt-p').checked;
+  if (!title && !body.trim()){ g('nt-err').textContent = 'Write something first.'; g('nt-b').focus(); return null; }
+  const now = new Date().toISOString();
+  let n = id ? NOTES.find(x=>x.id===id) : null;
+  if (n && !canEditNote(n)) return null;
+  if (!n){ n = {id: newId('N-', NOTES.length+1), owner:S.user, created:now}; NOTES.unshift(n); }
+  Object.assign(n, {title, body, vis, color, pinned, updated:now});
+  // mentions: only team notes notify; people no longer tagged are removed, people still tagged are not notified again
+  const tagged = vis==='team' ? noteMentions(body).filter(k=>k!==S.user && USERS[k]) : [];
+  MENTIONS = MENTIONS.filter(m => m.note!==n.id || tagged.includes(m.to));
+  const fresh = tagged.filter(k => !MENTIONS.some(m=>m.note===n.id && m.to===k));
+  fresh.forEach(k => MENTIONS.push({id:n.id+'|'+k, note:n.id, to:k, by:S.user, at:now, seen:false}));
+  AUDIT.unshift([nowStamp(), S.user, id?'edited note':'added note', `${noteTitle(n)}${vis==='me'?' · only me':''}${fresh.length?' · tagged '+fresh.map(k=>UU(k).name).join(', '):''}`]);
+  return {n, fresh};
+}
+function noteSeen(id){ let changed = false; MENTIONS.forEach(m=>{ if (m.note===id && m.to===S.user && !m.seen){ m.seen = true; m.seenAt = new Date().toISOString(); changed = true; } }); return changed; }
+document.addEventListener('input', e=>{ if (e.target.id==='nt-b') noteWho(); });
+document.addEventListener('change', e=>{ if (e.target.name==='nt-v') noteWho(); });
+
 /* ---------------- search everything (top bar) ---------------- */
 function viewSearch(){
   const q = (S.q||'').trim(), t = q.toLowerCase(), has = (...v) => t.split(/\s+/).every(w => v.some(x => String(x||'').toLowerCase().includes(w)));
@@ -1055,6 +1157,7 @@ function viewSearch(){
     ['Tasks', visibleTasks().filter(x=>has(x.title, x.cat, UU(x.owner).name, x.id)), x=>`<div class="item click" data-act="open" data-id="${esc(x.id)}"><div class="main-t"><b>${esc(x.title)}</b><div class="meta">${esc(UU(x.owner).name)} · due ${fmt(x.due)}${x.status==='done'?' · done':''}</div></div></div>`],
     ['Sessions', visibleSessions().filter(x=>has(x.title, x.cohort, x.prog, x.fac&&FACULTY[x.fac]?FACULTY[x.fac].name:'', x.venue)), x=>`<div class="item click" data-act="session" data-id="${esc(x.id)}"><div class="main-t"><b>${esc(x.title)}</b><div class="meta">${fmt(x.date)} ${x.date.slice(0,4)} · ${esc(x.cohort)}${x.fac&&FACULTY[x.fac]?' · '+esc(FACULTY[x.fac].name):''}</div></div></div>`],
     ['Faculty', activeFac().filter(([,f])=>has(f.name, f.desig, f.exp, f.email, f.phone, f.city)), ([id,f])=>`<div class="item click" data-act="fac" data-id="${esc(id)}"><div class="main-t"><b>${esc(f.name)}</b><div class="meta">${[f.desig||f.exp, f.email].filter(Boolean).map(esc).join(' · ')}</div></div></div>`],
+    ['Notes', visibleNotes().filter(n=>has(n.title, n.body, UU(n.owner).name)), n=>`<div class="item click" data-act="noteopen" data-id="${esc(n.id)}"><div class="main-t"><b>${esc(noteTitle(n))}</b><div class="meta">${esc(UU(n.owner).name)} · ${n.vis==='me'?'Only me':'Team'} · ${noteWhen(n.updated)}</div></div></div>`],
     ['Invoices', visibleInvoices().filter(v=>has(v.no, invParty(v), v.cohort)), v=>`<div class="item click" data-act="inv" data-id="${esc(v.id)}"><div class="main-t"><b>${esc(v.no)}</b><div class="meta">${esc(invParty(v))}${v.cohort?' · '+esc(v.cohort):''}</div></div></div>`],
   ];
   const total = groups.reduce((a,[,l])=>a+l.length,0);
@@ -1882,6 +1985,12 @@ function modal(kind, id){
   if (kind==='approve'){ const r=REQUESTS.find(x=>x.email===id); if (!r) return ''; return `<div class="scrim center" data-act="close"><div class="modal wide" role="dialog" aria-label="Approve sign-up" data-stop><div class="drawer-h"><div style="flex:1"><div class="eyebrow">Sign-up request</div><h2>Approve ${esc(r.name||r.email)}</h2></div><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div><div class="drawer-b"><p class="demo-note" style="margin:0">Choose their title and access. Honorariums stay hidden unless you tick the box.</p>${memberForm(null, r)}</div><div class="modal-f"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="membersave" data-id="" data-req="${esc(r.email)}">Approve</button></div></div></div>`; }
   if (kind==='attmark'){ const c=COHORTS.find(x=>x.code===id); if (!c||!ATT) return ''; return `<div class="scrim center" data-act="close"><div class="modal wide" role="dialog" aria-label="Attendance for ${esc(c.code)}" data-stop><div class="drawer-h"><div style="flex:1"><div class="eyebrow">${esc(c.prog)} · ${esc(c.code)}</div><h2>Mark attendance</h2></div><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div><div class="drawer-b">${attForm(id)}</div><div class="modal-f"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="save" data-m="attmark">Save attendance</button></div></div></div>`; }
   if (kind==='pastsess'){ if (!PSU) return ''; return `<div class="scrim center" data-act="close"><div class="modal wide" role="dialog" aria-label="Upload past sessions" data-stop><div class="drawer-h"><div style="flex:1"><div class="eyebrow">Sessions</div><h2>Upload past sessions</h2></div><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div><div class="drawer-b">${psForm()}</div><div class="modal-f"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="save" data-m="pastsess">Add sessions</button></div></div></div>`; }
+  if (kind==='note'){ const n = id ? NOTES.find(x=>x.id===id) : null; if (id && !n) return '';
+    const edit = !n || canEditNote(n) && S.noteEdit;
+    const foot = edit ? `<button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="save" data-m="note" data-id="${n?esc(n.id):''}">${n?'Save note':'Add note'}</button>`
+      : `${canEditNote(n)?`<button class="btn" data-act="modal" data-m="notedel" data-id="${esc(n.id)}" style="margin-right:auto">Delete</button><button class="btn" data-act="noteedit" data-id="${esc(n.id)}">Edit</button>`:''}<button class="btn primary" data-act="close">Close</button>`;
+    return `<div class="scrim center" data-act="close"><div class="modal wide" role="dialog" aria-label="${n?esc(noteTitle(n)):'New note'}" data-stop><div class="drawer-h"><div style="flex:1"><div class="eyebrow">Notes${n?` · ${n.vis==='me'?'Only me':'Team'}`:''}</div><h2>${n?esc(noteTitle(n)):'New note'}</h2></div><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div><div class="drawer-b">${edit?noteForm(n):noteView(n)}</div><div class="modal-f">${foot}</div></div></div>`; }
+  if (kind==='notedel'){ const n = NOTES.find(x=>x.id===id); if (!n) return ''; return `<div class="scrim center" data-act="close"><div class="modal" role="dialog" aria-label="Delete note" data-stop><div class="drawer-h"><h2>Delete “${esc(noteTitle(n))}”?</h2><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div><div class="drawer-b"><p style="margin:0">This removes the note${n.vis==='team'?' for everyone':''}. It cannot be undone.</p></div><div class="modal-f"><button class="btn" data-act="close">Keep</button><button class="btn primary" style="background:var(--bad);border-color:var(--bad)" data-act="save" data-m="notedel" data-id="${esc(n.id)}">Delete note</button></div></div></div>`; }
   if (kind==='stuedit'){ const st=stuById(id); if (!st) return ''; return `<div class="scrim center" data-act="close"><div class="modal wide" role="dialog" aria-label="Edit student" data-stop><div class="drawer-h"><div style="flex:1"><div class="eyebrow">${esc(st.cohort)} · ${esc(st.id)}</div><h2>Edit ${esc(st.name)}</h2></div><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div><div class="drawer-b">${stuEditForm(st)}</div><div class="modal-f"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="save" data-m="stuedit" data-id="${esc(st.id)}">Save changes</button></div></div></div>`; }
   if (kind==='stuadd'){ if (!STU) return ''; return `<div class="scrim center" data-act="close"><div class="modal wide" role="dialog" aria-label="Add students" data-stop><div class="drawer-h"><div style="flex:1"><div class="eyebrow">Students</div><h2>Add students</h2></div><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div><div class="drawer-b">${stuForm()}</div><div class="modal-f"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="save" data-m="stuadd">Save students</button></div></div></div>`; }
   if (kind==='memberdel') return `<div class="scrim center" data-act="close"><div class="modal" role="dialog" aria-label="Remove person" data-stop><div class="drawer-h"><h2>Remove ${esc(UU(id).name)}?</h2><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div><div class="drawer-b"><p style="margin:0">They will lose all access to Optimus straight away. Their past tasks, sessions and activity stay on record.</p></div><div class="modal-f"><button class="btn" data-act="close">Cancel</button><button class="btn primary" style="background:var(--bad);border-color:var(--bad)" data-act="memberdel" data-id="${id}">Remove</button></div></div></div>`;
@@ -1908,7 +2017,7 @@ function modal(kind, id){
 const root = document.getElementById('root');
 function render(){
   if (!S.user){ root.innerHTML = viewLogin(); drawWeave(); return; }
-  const v = {search:viewSearch,myday:viewMyDay,overview:viewOverview,tasks:viewTasks,sessions:viewSessions,faculty:viewFaculty,students:viewStudents,cohorts:viewCohorts,kpis:viewKpis,payments:viewPayments,invoices:viewInvoices,reports:viewReports,admin:viewAdmin}[S.view] || viewOverview;
+  const v = {search:viewSearch,notes:viewNotes,myday:viewMyDay,overview:viewOverview,tasks:viewTasks,sessions:viewSessions,faculty:viewFaculty,students:viewStudents,cohorts:viewCohorts,kpis:viewKpis,payments:viewPayments,invoices:viewInvoices,reports:viewReports,admin:viewAdmin}[S.view] || viewOverview;
   let html = shell(v());
   if (S.drawer){ const [k,id]=S.drawer; html += k==='task'?drawerTask(TASKS.find(t=>t.id===id)):k==='kpi'?drawerKpi(+id, S.drawer[2]):k==='fac'?drawerFaculty(id):k==='inv'?drawerInvoice(INVOICES.find(v=>v.id===id)):k==='student'?drawerStudent(COHORTS.flatMap(c=>c.students).find(s=>s.id===id)):drawerSession(SESSIONS.find(s=>s.id===id)); }
   if (S.up) html += uploadModal();
@@ -1949,7 +2058,7 @@ function a11yAfter(prevKey, prevOverlay){
   root.querySelectorAll('.tbl-wrap').forEach(e=>{ if (e.scrollWidth > e.clientWidth + 1){ e.tabIndex = 0; e.setAttribute('role','region'); e.setAttribute('aria-label','Table. Scroll sideways for more columns.'); } });
   root.querySelectorAll('[role=dialog]').forEach(d=>d.setAttribute('aria-modal','true'));
   root.querySelectorAll('.sc-err').forEach(e=>e.setAttribute('role','alert'));
-  const overlay = S.modal ? 'm:'+S.modal.join('|') : S.drawer ? 'd:'+S.drawer.join('|') : S.up ? 'u' : '';
+  const overlay = S.modal ? 'm:'+S.modal.join('|')+(S.modal[0]==='note'&&S.noteEdit?'|edit':'') : S.drawer ? 'd:'+S.drawer.join('|') : S.up ? 'u' : '';
   A11Y.overlay = overlay;
   const dlgs = root.querySelectorAll('[role=dialog]'), top = dlgs[dlgs.length-1];
   if (overlay && overlay!==prevOverlay && top){
@@ -2023,6 +2132,8 @@ root.addEventListener('click', e=>{
     case 'save': { const m=el.dataset.m; let msg='Saved';
       if (m==='sched'){ const d=schedRead(), err=schedCheck(d); if (err){ schedPreview(); break; } const id=newId('S-', 320+SESSIONS.length-9); SESSIONS.push({id,date:d.date,time:d.time,prog:d.prog,cohort:d.cohort,title:d.title,mode:d.mode,venue:d.mode==='Online'?'Zoom':d.venue,zoom:d.mode==='Offline'?null:d.zoom,cal:true,fac:d.fac,pm:isMgr()?((COHORTS.find(c=>c.code===d.cohort)||{}).pm||S.user):S.user,notes:false,check:[d.fac?1:0,1,0,1,0],pay:{inv:'Not due',paid:'Not due',tds:'Not due'}}); S.sessTab='upcoming'; msg=`${d.title} scheduled · Google Calendar invite sent to ${d.inv} guests with the ${d.mode==='Offline'?'venue':'Zoom link'}`; }
       if (m==='invoice'){ S.invTried=true; const v=invRead(), err=invCheck(v); if (err){ invPreview(); break; } v.items=v.items.filter(i=>i.d||i.r); v.id=newId('IV-', 49+INVOICES.length-8); invNext[v.type]++; v.status=el.dataset.draft?'draft':'sent'; INVOICES.unshift(v); S.invTried=false; S.view='invoices'; S.invF='all'; S.drawer=['inv',v.id]; msg=`${v.no} ${v.status==='draft'?'saved as a draft':'created for '+rs(invCalc(v).total)}`; if (el.dataset.dl){ S.modal=null; render(); invPdf(v); break; } }
+      if (m==='note'){ const r=noteSave(el.dataset.id||null); if (!r) break; S.view='notes'; msg = r.fresh.length ? `Note saved. ${r.fresh.map(k=>UU(k).name.split(' ')[0]).join(', ')} will be notified.` : 'Note saved'; }
+      if (m==='notedel'){ const n=NOTES.find(x=>x.id===el.dataset.id); if (n && canEditNote(n)){ NOTES=NOTES.filter(x=>x!==n); MENTIONS=MENTIONS.filter(x=>x.note!==n.id); AUDIT.unshift([nowStamp(),S.user,'deleted note',noteTitle(n)]); msg='Note deleted'; } }
       if (m==='stuedit'){ const r=stuEditSave(el.dataset.id); if (!r) break; msg=r; }
       if (m==='stuadd'){ const r=stuSave(); if (!r) break; S.view='cohorts'; S.cohort=r.c.code; S.ctab='students'; msg=`${r.n} student${r.n===1?'':'s'} added to ${r.c.code}`; }
       if (m==='pastsess'){ const r=psSave(); if (!r) break; msg=`${r.n} past session${r.n===1?'':'s'} added to ${r.c.code}. They now show when you mark attendance.`; }
@@ -2053,6 +2164,11 @@ root.addEventListener('click', e=>{
     case 'attmark': attOpen(el.dataset.id); render(); break;
     case 'pastsess': psOpen(); render(); break;
     case 'stuadd': stuOpen(el.dataset.id); render(); break;
+    case 'notenew': S.noteEdit=true; S.modal=['note','']; render(); break;
+    case 'noteopen': { const n=NOTES.find(x=>x.id===el.dataset.id); if (!n) break; S.notif=false; noteSeen(n.id); S.noteEdit=false; S.modal=['note',n.id]; render(); break; }
+    case 'noteedit': S.noteEdit=true; S.modal=['note',el.dataset.id]; render(); noteWho(); break;
+    case 'notef': S.noteF=el.dataset.v; render(); break;
+    case 'notetag': { const b=document.getElementById('nt-b'); if (!b) break; const name='@'+UU(el.dataset.id).name.split(' ')[0]+' '; const st=b.selectionStart??b.value.length; const pre=b.value.slice(0,st), post=b.value.slice(b.selectionEnd??st); const sp=pre && !/\s$/.test(pre)?' ':''; b.value=pre+sp+name+post; const pos=(pre+sp+name).length; b.focus(); b.setSelectionRange(pos,pos); noteWho(); break; }
     case 'cohortgo': S.q=''; S.csq=''; S.view='cohorts'; S.cohort=el.dataset.id; S.ctab=el.dataset.v||'profile'; render(); window.scrollTo(0,0); break;
     case 'qclear': S.q=''; S.view=S.prevView||'overview'; render(); { const x=document.getElementById('q'); if (x) x.focus(); } break;
     case 'coqclear': S.csq=''; render(); { const x=document.getElementById('co-q'); if (x) x.focus(); } break;

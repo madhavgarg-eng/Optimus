@@ -92,3 +92,16 @@ export async function clearRequest(email) {
   const { error } = await sb.from('join_requests').delete().eq('email', email);
   fail(error, 'Clearing request');
 }
+
+// Notes: items that can be deleted from the app, and the shared items re-checked every minute.
+export async function deleteRows(keys) {
+  for (const k of keys) {
+    const { error } = await sb.from('records').delete().eq('collection', k.collection).eq('id', k.id);
+    fail(error, 'Deleting');
+  }
+}
+export async function fetchRows(collections) {
+  const { data, error } = await sb.from('records').select('collection,id,seq,owner_key,confidential,data').in('collection', collections).order('seq', { ascending: true });
+  fail(error, 'Refreshing');
+  return data;
+}

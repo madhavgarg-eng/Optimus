@@ -54,7 +54,7 @@ language sql stable as $$ select coalesce(public.my_kind() in ('chair','head','o
 -- but never read them back.
 create table if not exists public.records (
   collection   text not null check (collection in
-               ('tasks','sessions','faculty','faculty_private','cohorts','honoraria','invoices','settings')),
+               ('tasks','sessions','faculty','faculty_private','cohorts','honoraria','invoices','settings','notes','notes_private','mentions')),
   id           text not null,
   seq          bigserial,
   owner_key    text,
@@ -66,17 +66,25 @@ create table if not exists public.records (
   primary key (collection, id)
 );
 create index if not exists records_seq_idx on public.records (seq);
+alter table public.records drop constraint if exists records_collection_check;
+alter table public.records add constraint records_collection_check check (collection in
+  ('tasks','sessions','faculty','faculty_private','cohorts','honoraria','invoices','settings','notes','notes_private','mentions'));
 
 -- confidential collections are always confidential, whatever the app sends
 create or replace function public.records_before_write() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
   if new.collection in ('faculty_private','honoraria') then new.confidential := true; end if;
+  if new.collection in ('notes','notes_private','mentions') then new.confidential := false; end if;
   new.updated_at := now();
   new.updated_by := public.my_member_key();
+  if tg_op = 'INSERT' and new.collection in ('notes','notes_private','mentions') then
+    new.owner_key := public.my_member_key();
+  end if;
   if tg_op = 'UPDATE' then
     new.created_at := old.created_at;
     new.seq := old.seq;
+    if old.collection in ('notes','notes_private','mentions') then new.owner_key := old.owner_key; end if;
     -- once confidential, an item cannot be made public again except by someone with honorarium access
     if old.confidential and not new.confidential and not public.can_see_confidential() then
       new.confidential := true;
@@ -193,15 +201,24 @@ drop policy if exists rec_read   on public.records;
 drop policy if exists rec_insert on public.records;
 drop policy if exists rec_update on public.records;
 drop policy if exists rec_delete on public.records;
-create policy rec_read   on public.records for select to authenticated
-  using (public.is_member() and (not confidential or public.can_see_confidential()));
+create policy rec_read on public.records for select to authenticated
+  using (public.is_member()
+         and (not confidential or public.can_see_confidential())
+         and (collection <> 'notes_private' or owner_key = public.my_member_key()));
 create policy rec_insert on public.records for insert to authenticated
-  with check (public.is_member());
+  with check (public.is_member()
+              and (collection <> 'notes_private' or owner_key = public.my_member_key()));
 create policy rec_update on public.records for update to authenticated
-  using (public.is_member() and (not confidential or public.can_see_confidential()))
-  with check (public.is_member());
+  using (public.is_member()
+         and (not confidential or public.can_see_confidential())
+         and (collection <> 'notes_private' or owner_key = public.my_member_key()))
+  with check (public.is_member()
+              and (collection <> 'notes_private' or owner_key = public.my_member_key()));
 create policy rec_delete on public.records for delete to authenticated
-  using (public.can_see_confidential());
+  using ((collection not in ('notes','notes_private','mentions') and public.can_see_confidential())
+         or (collection in ('notes','notes_private','mentions') and owner_key = public.my_member_key())
+         or (collection = 'notes' and public.is_owner()));
+
 
 drop policy if exists audit_read   on public.audit_log;
 drop policy if exists audit_insert on public.audit_log;

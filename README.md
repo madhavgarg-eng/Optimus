@@ -9,25 +9,28 @@ Reverentia's daily work management tool for the DWM team. It covers tasks, sessi
 
 The database itself enforces who can see what (Postgres row-level security), so hiding data in the app is not the only protection.
 
-| Role (`kind`) | Who | Sees |
+| Access level (`kind`) | Who | Sees |
 |---|---|---|
-| `chair`, `head` | Rajiv, Neha | Everything, including honorariums, faculty rates, bank and PAN details, and senior-faculty invoices with their files |
-| `owner`, `lead` | Madhav, Shivpriya | Team view. Confidential money fields are never sent to their browser |
-| `pm` | Programme managers | Their own work. Confidential money fields are never sent to their browser |
+| `owner` | Madhav (DWM owner) | Everything, whatever the hierarchy. Approves new sign-ups, manages everyone, and is the only one who can make or change a DWM owner |
+| `chair`, `head` | Rajiv, Neha | All work, and manage people |
+| `lead` | Shivpriya | Team view |
+| `pm` | Priyanshi and programme managers | Their own work |
 
-- **Signing in:** only emails listed in the `team_members` table can sign in and read data.
-- **Confidential items:** anyone can add one (for example, a PM attaching a senior faculty member's invoice), but only `chair` and `head` can read it back.
+- **Honorariums** (faculty rates, totals, bank and PAN details, senior-faculty invoices and their files) are a separate per-person switch, `can_see_honorariums`. It is off for anyone new until it is switched on in Admin, then People and access. It is always on for the DWM owner. People without it never receive those fields in their browser.
+- **Signing up:** anyone can create an account from the sign-in page. They see only a "Waiting for approval" screen until the DWM owner approves the request (Admin, then People and access, then Sign-up requests) and picks their access level.
+- **Confidential items:** anyone can add one (for example, a PM attaching a senior faculty member's invoice), but only people with honorarium access can read it back.
+- **Notes:** team notes are visible to everyone on the team. Notes marked Only me can be read only by their author, enforced in the database (not even the DWM owner can read them). @mentions in team notes notify the person tagged; notes and mentions refresh every minute.
 - **Activity log:** it can only be added to. Every database change is also logged automatically, with who made it and when.
-- **Invoice files:** they sit in a private storage bucket. Senior-faculty files go under `confidential/` and only `chair` and `head` can open them.
+- **Invoice files:** they sit in a private storage bucket. Senior-faculty files go under `confidential/` and only people with honorarium access can open them.
 
 ## One-time setup
 
 ### 1. Supabase (database)
-1. In Supabase, open **SQL Editor**, click **New query**, paste all of `supabase/schema.sql`, and click **Run**.
-2. Open **Table Editor**, then `team_members`, and replace the `@example.com` emails with real ones. To add yourself as an admin, add a row with `kind` set to `head`.
-3. Open **Authentication**, then **Users**, then **Add user**, then **Create new user**. Create each person with their email and a password, and tick **Auto Confirm User**.
-4. Open **Authentication**, then **Sign In / Providers**, and turn off **Allow new users to sign up**. Only people you add can then sign in.
-5. The first person to sign in must be a `chair` or `head`. On that first sign-in, Optimus loads the starter data from the prototype. You can edit or remove it later.
+1. In Supabase, open **SQL Editor**, click **New query**, paste all of `supabase/schema.sql`, and click **Run**. (An existing database only needs `supabase/notes.sql` for the notes board.)
+2. Run `supabase/set-team.sql` with the real emails filled in.
+3. Open **Authentication**, then **Sign In / Providers**. Turn **Allow new users to sign up** on and keep **Confirm email** on. New accounts see nothing until the DWM owner approves them.
+4. People then create their own account from the sign-in page. You can also create one under **Authentication**, then **Users**, then **Add user**, with **Auto Confirm User** ticked.
+5. The live app starts empty. Add cohorts (Cohorts → Add cohort, with a student Excel/CSV), faculty, sessions and tasks from inside the app.
 
 ### 2. Cloudflare Pages (hosting)
 1. Push this folder to a GitHub repository.
@@ -50,6 +53,10 @@ To turn it on, add two repository secrets in GitHub (**Settings**, then **Secret
 - `SUPABASE_URL`
 - `SUPABASE_ANON_KEY`
 
+## Accessibility
+- Works with a screen reader and keyboard alone: a skip link, every clickable row and card can be reached with Tab and opened with Enter, focus moves into a form or panel when it opens and back when it closes, Tab stays inside an open form, and messages are read out.
+- **Easy reading** (the **Aa** button in the top bar, also on the sign-in page) gives larger text, stronger contrast and clear focus outlines. Each person turns it on for themselves, and it is remembered on that device.
+
 ## Local development
 ```
 npm install
@@ -58,7 +65,7 @@ npm run dev
 ```
 Without the env variables, the app runs the original preview: sample data, kept in memory only, with a "view as" persona switcher.
 
-`npm run test:sql` checks the access rules against an in-memory Postgres.
+`npm run test:sql` checks the access rules against an in-memory Postgres. `node scripts/test-notes.mjs` checks that private notes stay private, even from the DWM owner. `node scripts/test-team.mjs` checks the team, honorarium and sign-up approval rules. `node scripts/test-cleanup.mjs` checks `supabase/remove-sample-data.sql`.
 
 ## Free-tier limits (check the current pricing pages)
 - **Supabase Free:** 500 MB database, 1 GB file storage, 50,000 monthly active users, 2 projects. Pauses after 7 idle days.
@@ -67,5 +74,5 @@ Without the env variables, the app runs the original preview: sample data, kept 
 ## Known limits of this first version
 - Each person sees changes made by others after they reload the page. There is no live sync yet.
 - If two people edit the same item at the same moment, the last save wins.
-- KPI figures, student attendance and NPS still come from the prototype's starter data until real data entry or imports are built.
+- KPI scores show "No data yet" until KPI entry or imports are built. Assignment scores upload is not built yet. Student attendance can be marked by hand or uploaded per session (Cohorts, then a cohort, then Attendance).
 - Password reset is done by an admin in Supabase (**Authentication**, then **Users**). Email-based reset is limited on the free plan's built-in mailer.

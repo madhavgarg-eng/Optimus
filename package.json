@@ -8,11 +8,12 @@
     "test:sql": "node scripts/test-schema.mjs"
   },
   "devDependencies": {
-    "vite": "5.4.11",
-    "@electric-sql/pglite": "0.2.12"
+    "@electric-sql/pglite": "0.2.12",
+    "vite": "5.4.11"
   },
   "dependencies": {
-    "@supabase/supabase-js": "2.45.4"
+    "@supabase/supabase-js": "2.45.4",
+    "xlsx": "0.18.5"
   },
   "private": true,
   "type": "module"

@@ -522,16 +522,70 @@ const hrs = h => (Math.round((+h||0)*10)/10).toLocaleString('en-IN');
 const payTagF = p => `<span class="tag plain ${p==='MU'?'t-info':'t-accent'}">${p==='MU'?"MU payroll":'Reverentia payroll'}</span>`;
 const lnk = u => { if (!u) return ''; const h = /^https?:\/\//i.test(u) ? u : 'https://'+u; return `<a href="${esc(h)}" target="_blank" rel="noopener noreferrer" class="zlink" data-stop-row>LinkedIn</a>`; };
 
+const facInitials = n => (n||'').replace(/^(Dr\.|Prof\.)\s*/,'').split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0].toUpperCase()).join('') || '?';
+const facPic = (f,sz) => /^data:image\/(jpeg|png|webp);base64,/.test(f.photo||'') ? `<img class="fac-pic" src="${f.photo}" alt="Photo of ${esc(f.name||'faculty')}" width="${sz}" height="${sz}" style="width:${sz}px;height:${sz}px">` : `<span class="fac-pic fac-ini" aria-hidden="true" style="width:${sz}px;height:${sz}px;font-size:${Math.round(sz*0.38)}px">${esc(facInitials(f.name))}</span>`;
+const facParkSet = f => f.park && Object.values(f.park).some(Boolean);
+// Shrink an uploaded photo to at most 320 px so it can live in the faculty record.
+function facPhotoRead(file){
+  return new Promise((ok,no)=>{
+    if (!/^image\/(jpeg|png|webp)$/.test(file.type)) return no(new Error('Choose a JPG, PNG or WebP image.'));
+    if (file.size > 15*1024*1024) return no(new Error('That image is over 15 MB. Choose a smaller one.'));
+    const url = URL.createObjectURL(file), im = new Image();
+    im.onload = () => { const k = Math.min(1, 320/Math.max(im.width, im.height)), c = document.createElement('canvas'); c.width = Math.round(im.width*k); c.height = Math.round(im.height*k); const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0,0,c.width,c.height); x.drawImage(im,0,0,c.width,c.height); URL.revokeObjectURL(url); ok(c.toDataURL('image/jpeg', 0.82)); };
+    im.onerror = () => { URL.revokeObjectURL(url); no(new Error('Could not read that image.')); };
+    im.src = url;
+  });
+}
+function ffPicShow(data){
+  const h = document.getElementById('ff-photo'); if (!h) return; h.value = data;
+  const name = (document.getElementById('ff-n')||{}).value || '';
+  document.getElementById('ff-pic').innerHTML = facPic({photo:data, name}, 64);
+  document.getElementById('ff-pdel').hidden = !data;
+  const lb = document.querySelector('label[for="ff-pf"]'); if (lb) lb.lastChild.textContent = data ? 'Change photo' : 'Upload photo';
+}
+document.addEventListener('change', async e => {
+  if (e.target.id !== 'ff-pf' || !e.target.files[0]) return;
+  const er = document.getElementById('ff-err');
+  try { ffPicShow(await facPhotoRead(e.target.files[0])); if (er) er.textContent = ''; announce('Photo added. Save to keep it.'); }
+  catch(x){ if (er) er.textContent = x.message; }
+  e.target.value = '';
+});
+let facBusy = false;
+async function facXlsx(){
+  if (facBusy) return; facBusy = true;
+  try {
+    const X = await import('xlsx'), conf = canConf();
+    const list = activeFac().sort((a,b)=>a[1].name.replace(/^(Dr\.|Prof\.)\s*/,'').localeCompare(b[1].name.replace(/^(Dr\.|Prof\.)\s*/,'')));
+    const hid = 'Confidential';
+    const rows = list.map(([id,f])=>{ const p=f.park||{}, b=f.bank||{}; return {
+      'Faculty ID':id,'Name':f.name||'','Designation':f.desig||'','Email':f.email||'','Phone':f.phone||'','LinkedIn':f.linkedin||'','City':f.city||'','Expertise':f.exp||'',
+      'Payroll':f.payroll==='MU'?"Masters' Union":'Reverentia','Programme Manager':f.pm?UU(f.pm).name:'','Senior faculty':f.senior?'Yes':'No','Photo on file':/^data:image/.test(f.photo||'')?'Yes':'No',
+      'Parking needed':p.need||'','Car number':p.no||'','Car model and colour':p.car||'','Driver':p.driver||'','Parking notes':p.notes||'',
+      'Sessions taken':+f.sessions||0,'Hours taken':+f.hours||0,'Honorarium basis':'Per '+(f.basis||'hour'),'Rate (₹)':conf?(+f.rate||0):hid,'Honorarium to date (₹)':conf?facHon(f):hid,
+      'Account holder':conf?(b.holder||''):(b.acct?hid:''),'Bank':conf?(b.bank||''):(b.acct?hid:''),'Account no.':b.acct?acctTxt(b.acct):'','IFSC':conf?(b.ifsc||''):(b.acct?hid:''),'PAN':f.pan?(conf?f.pan:'XXXXX'+f.pan.slice(5)):'',
+      'Last session':f.lastSession||'','Last connect':f.lastContact||'','Rating':f.rating?+f.rating.toFixed(1):'' }; });
+    const ws = X.utils.json_to_sheet(rows.length?rows:[{'Name':'No faculty in the directory'}]);
+    ws['!cols'] = Object.keys(rows[0]||{Name:1}).map(k=>({wch:Math.max(12,Math.min(40,Math.max(k.length, ...rows.map(r=>String(r[k]).length))+2))}));
+    ws['!freeze'] = {xSplit:2, ySplit:1}; ws['!autofilter'] = {ref: ws['!ref']};
+    const wb = X.utils.book_new(); X.utils.book_append_sheet(wb, ws, 'Faculty master');
+    const buf = X.write(wb, {bookType:'xlsx', type:'array'});
+    await saveFile(`Faculty master data ${TODAY_ISO}.xlsx`, new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}));
+    AUDIT.unshift([nowStamp(),S.user,'exported faculty master data',rows.length+' faculty']);
+    toast(conf ? `Exported ${rows.length} faculty to Excel` : `Exported ${rows.length} faculty. Rates and bank details show as Confidential.`);
+  } catch(_){ toast('Could not build the Excel file here.'); }
+  finally { facBusy = false; }
+}
+
 function viewFaculty(){
   const pf = S.facPay || 'all';
   let list = activeFac();
   if (pf!=='all') list = list.filter(([,f])=>f.payroll===pf);
-  if (S.q) list = list.filter(([,f])=>(f.name+f.desig+f.exp+f.email).toLowerCase().includes(S.q.toLowerCase()));
+  if (S.q) list = list.filter(([,f])=>(f.name+f.desig+f.exp+f.email+((f.park||{}).no||'')).toLowerCase().includes(S.q.toLowerCase()));
   list = list.sort((a,b)=>a[1].name.replace(/^(Dr\.|Prof\.)\s*/,'').localeCompare(b[1].name.replace(/^(Dr\.|Prof\.)\s*/,'')));
   const all = activeFac(), toConnect = all.filter(([,f])=>!f.lastContact || f.lastContact<'2026-10-01');
   const totalHrs = list.reduce((a,[,f])=>a+(+f.hours||0),0), totalSess = list.reduce((a,[,f])=>a+(+f.sessions||0),0), totalHon = list.reduce((a,[,f])=>a+facHon(f),0);
   const seg = `<div class="seg">${[['all','All'],['Reverentia','Reverentia payroll'],['MU','MU payroll']].map(([k,l])=>`<button class="${pf===k?'on':''}" data-act="facpay" data-v="${k}">${l}</button>`).join('')}</div>`;
-  return `<div class="page-head"><div><h1>Faculty directory</h1><p>Every faculty member's profile, payroll, sessions, hours and honorarium in one place. Honorariums and bank details are visible only to people with honorarium access.</p>${kpiFeeds([3,2])}</div><div class="toolbar"><button class="btn" data-act="modal" data-m="connect">${ic('phone')}Log a connect</button><button class="btn" data-act="modal" data-m="invrecv">${ic('upload')}Attach received invoice</button>${isMgr()?`<button class="btn primary" data-act="modal" data-m="facform">${ic('plus')}Add faculty</button>`:''}</div></div>
+  return `<div class="page-head"><div><h1>Faculty directory</h1><p>Every faculty member's profile, payroll, sessions, hours and honorarium in one place. Honorariums and bank details are visible only to people with honorarium access.</p>${kpiFeeds([3,2])}</div><div class="toolbar"><button class="btn" data-act="modal" data-m="connect">${ic('phone')}Log a connect</button><button class="btn" data-act="modal" data-m="invrecv">${ic('upload')}Attach received invoice</button><button class="btn" data-act="facxlsx">${ic('download')}Export to Excel</button>${isMgr()?`<button class="btn primary" data-act="modal" data-m="facform">${ic('plus')}Add faculty</button>`:''}</div></div>
   <div class="grid g4">
     <div class="card stat"><span class="lbl">Faculty in directory</span><span class="val num">${all.length}</span><span class="sub">${all.filter(([,f])=>f.payroll==='MU').length} on MU payroll · ${all.filter(([,f])=>f.payroll!=='MU').length} on Reverentia</span></div>
     <div class="card stat"><span class="lbl">Sessions and hours taken</span><span class="val num">${hrs(totalHrs)} h</span><span class="sub">${totalSess} sessions${pf!=='all'?' · filtered':''}</span></div>
@@ -540,7 +594,7 @@ function viewFaculty(){
   </div>
   <div class="toolbar">${seg}</div>
   <div class="card"><div class="tbl-wrap"><table><thead><tr><th>Faculty</th><th>Contact</th><th>Payroll</th><th class="r">Sessions</th><th class="r">Hours</th><th class="r">Rate</th><th class="r">Honorarium</th><th>Invoices</th><th>Bank</th><th>Quarterly connect</th></tr></thead><tbody>
-  ${list.map(([id,f])=>{const due=!f.lastContact||f.lastContact<'2026-10-01';return `<tr class="click" data-act="fac" data-id="${id}"><td class="fac-name"><b style="font-weight:600">${esc(f.name)}</b><div style="font-size:12px;color:var(--ink-3);max-width:240px">${esc(f.desig||f.exp)}${f.senior?' · Senior':''}</div></td><td style="font-size:13px"><div>${f.email?esc(f.email):'—'}</div><div>${lnk(f.linkedin)}</div></td><td>${payTagF(f.payroll)}</td><td class="r num">${f.sessions}</td><td class="r num">${hrs(f.hours)}</td><td class="r num">${canConf()?`${rs(f.rate)}<div style="font-size:11px;color:var(--ink-3)">per ${f.basis}</div>`:MASK}</td><td class="r num"><b>${honTxt(facHon(f))}</b></td><td style="white-space:nowrap">${facInvTag(id)}</td><td style="font-size:13px;white-space:nowrap">${f.bank&&f.bank.acct?`${esc(f.bank.bank)}<div class="mono" style="color:var(--ink-3)">${esc(acctTxt(f.bank.acct))}</div>`:'<span class="tag t-warn">Missing</span>'}</td><td>${due?`<button class="btn sm" data-act="modal" data-m="connect" data-id="${id}">Connect due</button>`:`<span class="tag t-good">Connected</span>`}<div style="font-size:12px;color:var(--ink-3);margin-top:3px">Last: ${f.lastContact?fmt(f.lastContact):'never'}</div></td></tr>`}).join('')||'<tr><td colspan="10" class="empty">No faculty match</td></tr>'}
+  ${list.map(([id,f])=>{const due=!f.lastContact||f.lastContact<'2026-10-01';return `<tr class="click" data-act="fac" data-id="${id}"><td class="fac-name"><div style="display:flex;gap:10px;align-items:center">${facPic(f,36)}<div><b style="font-weight:600">${esc(f.name)}</b><div style="font-size:12px;color:var(--ink-3);max-width:240px">${esc(f.desig||f.exp)}${f.senior?' · Senior':''}</div></div></div></td><td style="font-size:13px"><div>${f.email?esc(f.email):'—'}</div><div>${lnk(f.linkedin)}</div></td><td>${payTagF(f.payroll)}</td><td class="r num">${f.sessions}</td><td class="r num">${hrs(f.hours)}</td><td class="r num">${canConf()?`${rs(f.rate)}<div style="font-size:11px;color:var(--ink-3)">per ${f.basis}</div>`:MASK}</td><td class="r num"><b>${honTxt(facHon(f))}</b></td><td style="white-space:nowrap">${facInvTag(id)}</td><td style="font-size:13px;white-space:nowrap">${f.bank&&f.bank.acct?`${esc(f.bank.bank)}<div class="mono" style="color:var(--ink-3)">${esc(acctTxt(f.bank.acct))}</div>`:'<span class="tag t-warn">Missing</span>'}</td><td>${due?`<button class="btn sm" data-act="modal" data-m="connect" data-id="${id}">Connect due</button>`:`<span class="tag t-good">Connected</span>`}<div style="font-size:12px;color:var(--ink-3);margin-top:3px">Last: ${f.lastContact?fmt(f.lastContact):'never'}</div></td></tr>`}).join('')||'<tr><td colspan="10" class="empty">No faculty match</td></tr>'}
   </tbody></table></div></div>
   <p class="demo-note">Honorarium = rate × hours taken (hourly faculty) or rate × sessions taken (per-session faculty). People without access see XXXX in place of rates, totals and full bank account numbers.</p>`;
 }
@@ -550,7 +604,7 @@ function drawerFaculty(id){
   const calc = conf ? `${rs(f.rate)} per ${f.basis} × ${f.basis==='hour'?hrs(f.hours)+' hours':f.sessions+' sessions'} = <b>${rs(facHon(f))}</b>` : `${MASK} <span class="demo-note">${ic('lock')} Visible only to Rajiv and Neha</span>`;
   const sess = SESSIONS.filter(s=>s.fac===id).sort((a,b)=>b.date.localeCompare(a.date));
   return `<div class="scrim" data-act="close"><div class="drawer" role="dialog" aria-label="Faculty profile" data-stop>
-    <div class="drawer-h"><div style="flex:1"><div class="eyebrow">${esc(f.city||'')}${f.senior?' · Senior faculty':''}</div><h2>${esc(f.name)}</h2><div class="demo-note" style="margin-top:2px">${esc(f.desig||'')}</div><div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">${payTagF(f.payroll)}${f.lastContact&&f.lastContact>='2026-10-01'?'<span class="tag t-good">Connected this quarter</span>':'<span class="tag t-warn">Connect due</span>'}</div></div><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div>
+    <div class="drawer-h">${facPic(f,64)}<div style="flex:1"><div class="eyebrow">${esc(f.city||'')}${f.senior?' · Senior faculty':''}</div><h2>${esc(f.name)}</h2><div class="demo-note" style="margin-top:2px">${esc(f.desig||'')}</div><div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">${payTagF(f.payroll)}${f.lastContact&&f.lastContact>='2026-10-01'?'<span class="tag t-good">Connected this quarter</span>':'<span class="tag t-warn">Connect due</span>'}</div></div><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div>
     <div class="drawer-b">
       ${isMgr()?`<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" data-act="modal" data-m="facform" data-id="${id}">Edit profile</button><button class="btn" data-act="modal" data-m="connect" data-id="${id}">${ic('phone')}Log a connect</button><button class="btn ghost" data-act="modal" data-m="facdel" data-id="${id}" style="color:var(--bad)">Remove from directory</button></div>`:''}
       <div class="grid g3" style="gap:10px">
@@ -559,6 +613,7 @@ function drawerFaculty(id){
         <div class="card stat"><span class="lbl">Honorarium to date</span><span class="val num" style="font-size:24px">${honTxt(facHon(f))}</span></div>
       </div>
       <div><div class="eyebrow" style="margin-bottom:8px">Profile</div><dl class="kv"><dt>Name</dt><dd>${esc(f.name)}</dd><dt>Designation</dt><dd>${esc(f.desig||'—')}</dd><dt>Email</dt><dd>${f.email?`<a class="zlink" href="mailto:${esc(f.email)}">${esc(f.email)}</a>`:'—'}</dd><dt>Phone</dt><dd>${esc(f.phone||'—')}</dd><dt>LinkedIn</dt><dd>${f.linkedin?lnk(f.linkedin):'—'}</dd><dt>Expertise</dt><dd>${esc(f.exp||'—')}</dd><dt>Payroll</dt><dd>${f.payroll==='MU'?"Masters' Union":'Reverentia'}</dd><dt>Programme Manager</dt><dd>${who(f.pm)}</dd><dt>Rating</dt><dd>${f.rating?f.rating.toFixed(1)+' / 5':'New'}</dd></dl></div>
+      <div><div class="eyebrow" style="margin-bottom:8px">Car parking</div>${facParkSet(f)?`<dl class="kv"><dt>Parking needed</dt><dd>${esc(f.park.need||'—')}</dd><dt>Car number</dt><dd class="mono" style="font-size:13px">${esc(f.park.no||'—')}</dd><dt>Car model and colour</dt><dd>${esc(f.park.car||'—')}</dd><dt>Driver</dt><dd>${esc(f.park.driver||'—')}</dd><dt>Notes</dt><dd>${esc(f.park.notes||'—')}</dd></dl>`:'<div class="demo-note">No parking details yet. Add them with Edit profile.</div>'}</div>
       <div><div class="eyebrow" style="margin-bottom:8px">Honorarium</div><dl class="kv"><dt>Basis</dt><dd>Per ${f.basis}</dd><dt>Rate</dt><dd>${conf?rs(f.rate):MASK}</dd><dt>Calculation</dt><dd>${calc}</dd></dl></div>
       <div><div class="eyebrow" style="margin-bottom:8px">Bank details</div>${f.bank&&f.bank.acct?`<dl class="kv"><dt>Account holder</dt><dd>${esc(f.bank.holder)}</dd><dt>Bank</dt><dd>${esc(f.bank.bank)}</dd><dt>Account no.</dt><dd class="mono" style="font-size:13px">${esc(acctTxt(f.bank.acct))}</dd><dt>IFSC</dt><dd class="mono" style="font-size:13px">${conf?esc(f.bank.ifsc):MASK}</dd><dt>PAN</dt><dd class="mono" style="font-size:13px">${f.pan?(conf?esc(f.pan):'XXXXX'+esc(f.pan.slice(5))):'—'}</dd></dl>`:'<div class="demo-note">No bank details yet. Add them before the first payment.</div>'}</div>
       <div><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><div class="eyebrow">Invoices received</div><button class="btn sm" data-act="modal" data-m="invrecv" data-id="${id}">${ic('upload')}Attach received invoice</button></div>${facInvoices(id).length?`<div class="list">${facInvoices(id).map(v=>{const c=invCalc(v),h=invHide(v);return `<div class="item click" data-act="inv" data-id="${v.id}" style="padding-inline:0;cursor:pointer"><div class="main-t"><b style="font-weight:600">${esc(v.no)}</b><div class="meta"><span>${fmt(v.date)}</span>${v.att?`<span>${ic('file')} ${esc(v.att.name.length>26?v.att.name.slice(0,25)+'…':v.att.name)}</span>`:''}<span>${h?MASK:rs(c.total)}${!h&&c.bal>=1&&c.settled?` · ${rs(c.bal)} due`:''}</span></div></div>${invTag(v)}</div>`}).join('')}</div>`:'<div class="demo-note">No invoices yet. Attach one when the faculty sends it.</div>'}</div>
@@ -576,7 +631,11 @@ function facForm(id){
     <div class="grid g2"><div class="field"><label for="ff-e">Email *</label><input id="ff-e" type="email" value="${v(f.email)}" placeholder="name@domain.com"></div><div class="field"><label for="ff-ph">Phone</label><input id="ff-ph" value="${v(f.phone)}" placeholder="+91"></div></div>
     <div class="grid g2"><div class="field"><label for="ff-l">LinkedIn</label><input id="ff-l" value="${v(f.linkedin)}" placeholder="https://www.linkedin.com/in/…"></div><div class="field"><label for="ff-c">City</label><input id="ff-c" value="${v(f.city)}"></div></div>
     <div class="field"><label for="ff-x">Expertise</label><input id="ff-x" value="${v(f.exp)}" placeholder="e.g. Succession, governance"></div>
+    <div class="field"><span class="lbl-t" id="ff-ph-l">Photo</span><div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><span id="ff-pic">${facPic(f,64)}</span><input type="hidden" id="ff-photo" value="${v(f.photo||'')}"><label class="btn sm" for="ff-pf">${ic('upload')}${f.photo?'Change photo':'Upload photo'}</label><input id="ff-pf" type="file" accept="image/jpeg,image/png,image/webp" class="sr-only" aria-labelledby="ff-ph-l"><button class="btn sm ghost" type="button" data-act="ffpicdel" id="ff-pdel" ${f.photo?'':'hidden'}>Remove photo</button><span class="demo-note">JPG, PNG or WebP. It is resized to keep the app fast.</span></div></div>
     <div class="grid g3 sc-when"><div class="field"><label for="ff-p">Payroll</label><select id="ff-p"><option value="Reverentia" ${f.payroll!=='MU'?'selected':''}>Reverentia</option><option value="MU" ${f.payroll==='MU'?'selected':''}>Masters' Union (MU)</option></select></div><div class="field"><label for="ff-pm">Programme Manager</label><select id="ff-pm">${PMS.map(p=>`<option value="${p}" ${f.pm===p?'selected':''}>${esc(UU(p).name)}</option>`).join('')}</select></div><div class="field"><label>&nbsp;</label><label style="display:flex;gap:8px;align-items:center;font-weight:500;font-size:13px;color:var(--ink)"><input type="checkbox" id="ff-sr" ${f.senior?'checked':''}> Senior faculty</label></div></div>
+    <div class="iv-sec">Car parking</div>
+    <div class="grid g3 sc-when"><div class="field"><label for="ff-pk">Parking needed</label><select id="ff-pk">${['','Yes','No','Sometimes'].map(o=>`<option value="${o}" ${(f.park||{}).need===o?'selected':''}>${o||'Not known'}</option>`).join('')}</select></div><div class="field"><label for="ff-pkn">Car number</label><input id="ff-pkn" value="${v((f.park||{}).no)}" placeholder="e.g. HR 26 DK 4521"></div><div class="field"><label for="ff-pkc">Car model and colour</label><input id="ff-pkc" value="${v((f.park||{}).car)}" placeholder="e.g. White Honda City"></div></div>
+    <div class="grid g2"><div class="field"><label for="ff-pkd">Driver name and phone</label><input id="ff-pkd" value="${v((f.park||{}).driver)}" placeholder="If they come with a driver"></div><div class="field"><label for="ff-pkx">Parking notes</label><input id="ff-pkx" value="${v((f.park||{}).notes)}" placeholder="e.g. Reserve a slot at Gate 2"></div></div>
     <div class="iv-sec">Sessions, hours and honorarium</div>
     <div class="grid g2"><div class="field"><label for="ff-s">Sessions taken</label><input id="ff-s" type="number" min="0" step="1" value="${+f.sessions||0}"></div><div class="field"><label for="ff-h">Hours taken</label><input id="ff-h" type="number" min="0" step="0.5" value="${+f.hours||0}"></div></div>
     ${conf?`<div class="grid g2"><div class="field"><label for="ff-b">Honorarium basis</label><select id="ff-b"><option value="hour" ${f.basis==='hour'?'selected':''}>Per hour</option><option value="session" ${f.basis==='session'?'selected':''}>Per session</option></select></div><div class="field"><label for="ff-r">Rate (₹)</label><input id="ff-r" type="number" min="0" step="500" value="${v(f.rate)}"></div></div><div class="iv-ro" id="ff-calc"></div>`:`<div class="iv-ro">${ic('lock')} Honorarium rates are set by people with honorarium access. Totals show as XXXX for everyone else.</div>`}
@@ -648,7 +707,7 @@ function facSave(id){
   if (err){ g('ff-err').textContent = err; return null; }
   const isNew = !id; if (isNew) id = newId('f', Object.keys(FACULTY).length+1);
   const f = FACULTY[id] || {sessions:0,hours:0,lastSession:null,lastContact:null,rating:null,basis:'hour',rate:0,bank:{holder:'',bank:'',acct:'',ifsc:''},pan:''};
-  Object.assign(f,{name,desig:val('ff-d'),email,phone:val('ff-ph'),linkedin:li,city:val('ff-c'),exp:val('ff-x'),payroll:val('ff-p'),pm:val('ff-pm'),senior:g('ff-sr').checked,sessions:+val('ff-s')||0,hours:+val('ff-h')||0});
+  Object.assign(f,{name,desig:val('ff-d'),email,phone:val('ff-ph'),linkedin:li,city:val('ff-c'),exp:val('ff-x'),payroll:val('ff-p'),pm:val('ff-pm'),senior:g('ff-sr').checked,sessions:+val('ff-s')||0,hours:+val('ff-h')||0,photo:g('ff-photo')?g('ff-photo').value:(f.photo||''),park:{need:val('ff-pk'),no:val('ff-pkn').toUpperCase(),car:val('ff-pkc'),driver:val('ff-pkd'),notes:val('ff-pkx')}});
   if (g('ff-b')){ f.basis=val('ff-b'); f.rate=+val('ff-r')||0; }
   const nb={holder:val('ff-bh'),bank:val('ff-bn'),acct:val('ff-ba'),ifsc:val('ff-bi').toUpperCase()};
   if (canConf() || isNew || Object.values(nb).some(Boolean)) f.bank = Object.values(nb).some(Boolean) ? nb : (isNew ? nb : f.bank);
@@ -2165,6 +2224,8 @@ root.addEventListener('click', e=>{
     case 'facpay': S.facPay=el.dataset.v; render(); break;
     case 'invpdf': e.stopPropagation(); invPdf(INVOICES.find(x=>x.id===el.dataset.id)); break;
     case 'invxlsx': invXlsx(); break;
+    case 'facxlsx': facXlsx(); break;
+    case 'ffpicdel': ffPicShow(''); announce('Photo removed. Save to keep the change.'); break;
     case 'invsend': { const v=INVOICES.find(x=>x.id===el.dataset.id); v.status='sent'; render(); toast(`${v.no} marked as sent to ${v.type==='sales'?v.to.name:'Reverentia'}`); break; }
     case 'invcancel': { const v=INVOICES.find(x=>x.id===el.dataset.id); v.status='cancelled'; render(); toast(`${v.no} cancelled. It stays on record.`); break; }
     case 'invprint': { const v=INVOICES.find(x=>x.id===el.dataset.id); let pa=document.getElementById('print-area'); if (!pa){ pa=document.createElement('div'); pa.id='print-area'; document.body.appendChild(pa); } pa.innerHTML=invDoc(v); const de=document.documentElement; de.classList.add('print-inv'); try{ window.print(); }catch(_){} setTimeout(()=>de.classList.remove('print-inv'), 800); break; }

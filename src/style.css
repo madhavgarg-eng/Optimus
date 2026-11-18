@@ -404,3 +404,9 @@ h1[tabindex="-1"]:focus{outline:none}
 .note-radio label{display:inline-flex;gap:6px;align-items:center}
 .note-sw{border:1px solid var(--line-2);border-radius:999px;padding:3px 10px}
 .count-inline{background:var(--bad);color:#fff;border-radius:999px;padding:0 6px;font-size:11px;font-weight:700}
+
+/* Faculty photo */
+.lbl-t{font-size:12px;font-weight:600;color:var(--ink-2)}
+.fac-pic{border-radius:50%;object-fit:cover;flex:none;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line-2)}
+.fac-ini{background:var(--accent-soft, var(--line));color:var(--ink-2);font-weight:600}
+.drawer-h .fac-pic{margin-right:12px}

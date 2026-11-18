@@ -1885,11 +1885,49 @@ function cohortSave(){
 }
 
 /* ---------------- drawers & modals ---------------- */
+/* ---------------- task form: used to create a task and to edit one ---------------- */
+const TASK_CATS = ['General','Sessions','Faculty','Students','Cohorts','KPIs','Payments','Reporting','Notes'];
+// Who can change a task's details: whoever assigned it, managers, and the owner of a task they gave themselves.
+const canEditTask = t => !!t && (t.by===S.user || isMgr() || (t.owner===S.user && t.by===S.user));
+function taskForm(t){
+  const v = t || {title:'', details:'', owner:S.user, due:addDays(TODAY_ISO,7), freq:'One-off', pri:'Medium', cat:'General', record:''};
+  const owners = isMgr() ? Object.keys(USERS) : [S.user];
+  if (t && !owners.includes(t.owner)) owners.push(t.owner);
+  return `<div class="grid taskf" style="gap:12px">
+    <div class="field"><label for="m-t">Task</label><input id="m-t" value="${esc(v.title)}" placeholder="What needs to be done?" maxlength="200"></div>
+    <div class="field"><label for="m-d">Details <span style="font-weight:400;color:var(--ink-3)">(optional)</span></label><textarea id="m-d" rows="4" placeholder="Steps, links, what good looks like">${esc(v.details||'')}</textarea></div>
+    <div class="grid g2"><div class="field"><label for="m-o">Owner</label><select id="m-o">${owners.map(u=>`<option value="${u}" ${u===v.owner?'selected':''}>${esc(UU(u).name)}</option>`).join('')}</select></div><div class="field"><label for="m-due">Due date</label><input id="m-due" type="date" value="${esc(v.due||'')}"></div></div>
+    <div class="grid g2"><div class="field"><label for="m-fq">Frequency</label><select id="m-fq">${['One-off','Daily','Weekly','Monthly','Quarterly'].map(x=>`<option ${x===v.freq?'selected':''}>${x}</option>`).join('')}</select></div><div class="field"><label for="m-p">Priority</label><select id="m-p">${['High','Medium','Low'].map(x=>`<option ${x===v.pri?'selected':''}>${x}</option>`).join('')}</select></div></div>
+    <div class="grid g2"><div class="field"><label for="m-c">Category</label><select id="m-c">${[...new Set([...TASK_CATS, v.cat||'General'])].map(x=>`<option ${x===(v.cat||'General')?'selected':''}>${esc(x)}</option>`).join('')}</select></div><div class="field"><label for="m-r">Record of completion</label><input id="m-r" value="${esc(v.record||'')}" placeholder="e.g. Notes attached, email sent"></div></div>
+    <span class="sc-err" id="m-err"></span>
+  </div>`;
+}
+function taskRead(){
+  const g = x=>document.getElementById(x);
+  const d = {title:g('m-t').value.trim(), details:g('m-d').value.trim(), owner:g('m-o').value, due:g('m-due').value, freq:g('m-fq').value, pri:g('m-p').value, cat:g('m-c').value, record:g('m-r').value.trim()};
+  const err = !d.title ? ['m-t','Write what needs to be done.'] : !d.due ? ['m-due','Choose the due date.'] : null;
+  if (err){ g('m-err').textContent = err[1]; g(err[0]).focus(); return null; }
+  return d;
+}
+function taskEditSave(id){
+  const t = TASKS.find(x=>x.id===id); if (!t || !canEditTask(t)) return null;
+  const d = taskRead(); if (!d) return null;
+  const label = {title:'Task',details:'Details',owner:'Owner',due:'Due date',freq:'Frequency',pri:'Priority',cat:'Category',record:'Record of completion'};
+  const show = (k,v) => k==='owner' ? UU(v).name : k==='due' ? fmtLong(v) : k==='details' ? 'updated' : (v||'—');
+  const changes = Object.keys(d).filter(k => (t[k]||'') !== (d[k]||''));
+  if (!changes.length) return `No changes to “${t.title}”`;
+  const lines = changes.map(k => k==='details' ? 'Details updated' : `${label[k]}: ${show(k,t[k]||'')} → ${show(k,d[k])}`);
+  Object.assign(t, d);
+  t.comments.push({u:S.user, t:'Edited the task. '+lines.join('; '), w:nowStamp()});
+  AUDIT.unshift([nowStamp(), S.user, 'edited task', `${t.id} · ${changes.map(k=>label[k].toLowerCase()).join(', ')}`]);
+  return `Task updated${changes.includes('due')?`. New due date ${fmtLong(d.due)}`:''}${changes.includes('owner')?`. Now with ${UU(d.owner).name}`:''}`;
+}
 function drawerTask(t){
   const canEdit = t.owner===S.user || t.by===S.user || canConf();
   return `<div class="scrim" data-act="close"><div class="drawer" role="dialog" aria-label="Task detail" data-stop>
-    <div class="drawer-h"><div style="flex:1"><div class="mono" style="color:var(--ink-3)">${t.id} · ${esc(t.cat)}</div><h2>${esc(t.title)}</h2></div><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div>
+    <div class="drawer-h"><div style="flex:1"><div class="mono" style="color:var(--ink-3)">${t.id} · ${esc(t.cat)}</div><h2>${esc(t.title)}</h2></div>${canEditTask(t)?`<button class="btn sm" data-act="modal" data-m="taskedit" data-id="${esc(t.id)}">Edit task</button>`:''}<button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div>
     <div class="drawer-b">
+      ${t.details?`<div><div class="eyebrow" style="margin-bottom:6px">Details</div><p style="margin:0;white-space:pre-wrap">${esc(t.details)}</p></div>`:''}
       <dl class="kv">
         <dt>Status</dt><dd>${canEdit?`<select id="st-sel" class="select" aria-label="Status" data-id="${t.id}">${[['todo','Not started'],['doing','In progress'],['blocked','Blocked'],['done','Done']].map(([k,l])=>`<option value="${k}" ${t.status===k?'selected':''}>${l}</option>`).join('')}</select> ${isOverdue(t)?'<span class="tag t-bad" style="margin-left:6px">Overdue</span>':''}`:statusTag(t)}</dd>
         <dt>Owner</dt><dd>${who(t.owner)}</dd>
@@ -1991,6 +2029,7 @@ function modal(kind, id){
       : `${canEditNote(n)?`<button class="btn" data-act="modal" data-m="notedel" data-id="${esc(n.id)}" style="margin-right:auto">Delete</button><button class="btn" data-act="noteedit" data-id="${esc(n.id)}">Edit</button>`:''}<button class="btn primary" data-act="close">Close</button>`;
     return `<div class="scrim center" data-act="close"><div class="modal wide" role="dialog" aria-label="${n?esc(noteTitle(n)):'New note'}" data-stop><div class="drawer-h"><div style="flex:1"><div class="eyebrow">Notes${n?` · ${n.vis==='me'?'Only me':'Team'}`:''}</div><h2>${n?esc(noteTitle(n)):'New note'}</h2></div><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div><div class="drawer-b">${edit?noteForm(n):noteView(n)}</div><div class="modal-f">${foot}</div></div></div>`; }
   if (kind==='notedel'){ const n = NOTES.find(x=>x.id===id); if (!n) return ''; return `<div class="scrim center" data-act="close"><div class="modal" role="dialog" aria-label="Delete note" data-stop><div class="drawer-h"><h2>Delete “${esc(noteTitle(n))}”?</h2><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div><div class="drawer-b"><p style="margin:0">This removes the note${n.vis==='team'?' for everyone':''}. It cannot be undone.</p></div><div class="modal-f"><button class="btn" data-act="close">Keep</button><button class="btn primary" style="background:var(--bad);border-color:var(--bad)" data-act="save" data-m="notedel" data-id="${esc(n.id)}">Delete note</button></div></div></div>`; }
+  if (kind==='taskedit'){ const t=TASKS.find(x=>x.id===id); if (!t||!canEditTask(t)) return ''; return `<div class="scrim center" data-act="close"><div class="modal wide" role="dialog" aria-label="Edit task" data-stop><div class="drawer-h"><div style="flex:1"><div class="eyebrow">${esc(t.id)}</div><h2>Edit task</h2></div><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div><div class="drawer-b">${taskForm(t)}<p class="demo-note" style="margin:0">Changes are added to the task's updates, so everyone can see what changed.</p></div><div class="modal-f"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="save" data-m="taskedit" data-id="${esc(t.id)}">Save changes</button></div></div></div>`; }
   if (kind==='stuedit'){ const st=stuById(id); if (!st) return ''; return `<div class="scrim center" data-act="close"><div class="modal wide" role="dialog" aria-label="Edit student" data-stop><div class="drawer-h"><div style="flex:1"><div class="eyebrow">${esc(st.cohort)} · ${esc(st.id)}</div><h2>Edit ${esc(st.name)}</h2></div><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div><div class="drawer-b">${stuEditForm(st)}</div><div class="modal-f"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="save" data-m="stuedit" data-id="${esc(st.id)}">Save changes</button></div></div></div>`; }
   if (kind==='stuadd'){ if (!STU) return ''; return `<div class="scrim center" data-act="close"><div class="modal wide" role="dialog" aria-label="Add students" data-stop><div class="drawer-h"><div style="flex:1"><div class="eyebrow">Students</div><h2>Add students</h2></div><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div><div class="drawer-b">${stuForm()}</div><div class="modal-f"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="save" data-m="stuadd">Save students</button></div></div></div>`; }
   if (kind==='memberdel') return `<div class="scrim center" data-act="close"><div class="modal" role="dialog" aria-label="Remove person" data-stop><div class="drawer-h"><h2>Remove ${esc(UU(id).name)}?</h2><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div><div class="drawer-b"><p style="margin:0">They will lose all access to Optimus straight away. Their past tasks, sessions and activity stay on record.</p></div><div class="modal-f"><button class="btn" data-act="close">Cancel</button><button class="btn primary" style="background:var(--bad);border-color:var(--bad)" data-act="memberdel" data-id="${id}">Remove</button></div></div></div>`;
@@ -2007,10 +2046,10 @@ function modal(kind, id){
     connect:['Log a faculty connect',`<div class="field"><label for="m-f">Faculty</label><select id="m-f">${facs.map(([k,f])=>`<option value="${k}" ${k===id?'selected':''}>${esc(f.name)}</option>`).join('')}</select></div><div class="grid g2"><div class="field"><label for="m-d2">Date</label><input id="m-d2" type="date" value="${TODAY_ISO}"></div><div class="field"><label for="m-mode2">Mode</label><select id="m-mode2"><option>Call</option><option>Meeting</option><option>Email</option></select></div></div><div class="field"><label for="m-n2">Notes and next step</label><textarea id="m-n2" placeholder="Availability, topics, next step"></textarea></div>`,'Save connect'],
     notes:['Add class notes',`<div class="field"><label for="m-ss">Session</label><select id="m-ss">${sessPast.map(s=>`<option value="${s.id}" ${s.id===id?'selected':''}>${esc(s.title)} · ${fmt(s.date)}</option>`).join('')||'<option>No sessions need notes</option>'}</select></div><div class="field"><label for="m-n3">Notes</label><textarea id="m-n3" placeholder="Key points, student questions, follow-ups"></textarea></div>`,'Save notes'],
     sched:['Schedule a class', schedForm(), 'Schedule and add to Google Calendar'],
-    task:['New task',`<div class="field"><label for="m-t">Task</label><input id="m-t" placeholder="What needs to be done?"></div><div class="grid g2"><div class="field"><label for="m-o">Owner</label><select id="m-o">${(isMgr()?Object.keys(USERS):[S.user]).map(u=>`<option value="${u}">${esc(UU(u).name)}</option>`).join('')}</select></div><div class="field"><label for="m-due">Due</label><input id="m-due" type="date" value="2026-10-22"></div></div><div class="grid g2"><div class="field"><label for="m-fq">Frequency</label><select id="m-fq"><option>One-off</option><option>Daily</option><option>Weekly</option><option>Monthly</option><option>Quarterly</option></select></div><div class="field"><label for="m-p">Priority</label><select id="m-p"><option>High</option><option selected>Medium</option><option>Low</option></select></div></div><div class="field"><label for="m-r">Record of completion</label><input id="m-r" placeholder="e.g. Notes attached, email sent"></div>`,'Create task']
+    task:['New task', taskForm(null), 'Create task']
   };
   const [h,b,cta] = map[kind];
-  return `<div class="scrim center" data-act="close"><div class="modal${kind==='sched'?' wide':''}" role="dialog" aria-label="${h}" data-stop><div class="drawer-h"><h2>${h}</h2><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div><div class="drawer-b">${b}</div><div class="modal-f"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="save" data-m="${kind}">${cta}</button></div></div></div>`;
+  return `<div class="scrim center" data-act="close"><div class="modal${kind==='sched'||kind==='task'?' wide':''}" role="dialog" aria-label="${h}" data-stop><div class="drawer-h"><h2>${h}</h2><button class="iconbtn" data-act="close" aria-label="Close">${ic('x')}</button></div><div class="drawer-b">${b}</div><div class="modal-f"><button class="btn" data-act="close">Cancel</button><button class="btn primary" data-act="save" data-m="${kind}">${cta}</button></div></div></div>`;
 }
 
 /* ---------------- render ---------------- */
@@ -2146,7 +2185,8 @@ root.addEventListener('click', e=>{
       if (m==='oneone'){ const sid=document.getElementById('m-s').value; const st=STUDENTS.find(s=>s.id===sid); if(st){st.last=TODAY_ISO; msg=`1:1 with ${st.name} logged`;} }
       if (m==='connect'){ const fid=document.getElementById('m-f').value; if(FACULTY[fid]){FACULTY[fid].lastContact=TODAY_ISO; msg=`Connect with ${FACULTY[fid].name} logged`;} }
       if (m==='notes'){ const sid=document.getElementById('m-ss').value; const s=SESSIONS.find(x=>x.id===sid); if(s){s.notes=true; msg='Class notes saved';} }
-      if (m==='task'){ const title=document.getElementById('m-t').value.trim()||'Untitled task'; const n=1061+TASKS.length-19; TASKS.unshift({id:newId('T-', n),title,owner:document.getElementById('m-o').value,by:S.user,due:document.getElementById('m-due').value||'2026-10-22',status:'todo',freq:document.getElementById('m-fq').value,cat:'General',pri:document.getElementById('m-p').value,record:document.getElementById('m-r').value||'Completion note',comments:[]}); msg=`Task created and assigned to ${USERS[TASKS[0].owner].name}`; }
+      if (m==='task'){ const d=taskRead(); if (!d) break; const n=1061+TASKS.length-19; TASKS.unshift({id:newId('T-', n), ...d, by:S.user, status:'todo', record:d.record||'Completion note', comments:[]}); AUDIT.unshift([nowStamp(),S.user,'created task',`${TASKS[0].title} · ${UU(d.owner).name} · due ${fmt(d.due)}`]); msg=`Task created and assigned to ${UU(d.owner).name}, due ${fmtLong(d.due)}`; }
+      if (m==='taskedit'){ const r=taskEditSave(el.dataset.id); if (!r) break; msg=r; }
       S.modal=null; toast(msg); break; }
     case 'comment': { const t=TASKS.find(x=>x.id===el.dataset.id); const v=document.getElementById('cmt').value.trim(); if(!v){toast('Write an update first');break;} t.comments.push({u:S.user,t:v,w:'Just now'}); render(); toast('Update posted'); break; }
     case 'check': { const s=SESSIONS.find(x=>x.id===el.dataset.id); s.check[+el.dataset.i]=el.checked?1:0; break; }
